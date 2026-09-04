@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.griplabs.macsound.engine</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/sunggu/Applications/MacTools.app/Contents/Helpers/MacToolsEngine.app/Contents/MacOS/MacToolsEngine</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/io.griplabs.macsound.engine.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/io.griplabs.macsound.engine.log</string>
+</dict>
+</plist>
