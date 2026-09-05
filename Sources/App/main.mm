@@ -1,4 +1,5 @@
 #import <AppKit/AppKit.h>
+#import "MicHealthUI.h"
 #import <CoreAudio/CoreAudio.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -66,13 +67,13 @@ static NSMutableDictionary *MSLoadConfig(void) {
         if ([object isKindOfClass:[NSDictionary class]]) {
             NSMutableDictionary *config = [object mutableCopy];
             if (!config[@"echoCancellationEnabled"]) config[@"echoCancellationEnabled"] = @YES;
-            if (!config[@"echoCancellationProfile"]) config[@"echoCancellationProfile"] = @"quality";
+            config[@"echoCancellationProfile"] = @"adaptive";
             return config;
         }
     }
     return [@{@"enabled": @NO,
               @"echoCancellationEnabled": @YES,
-              @"echoCancellationProfile": @"quality"} mutableCopy];
+              @"echoCancellationProfile": @"adaptive"} mutableCopy];
 }
 
 static BOOL MSSaveConfig(NSDictionary *config, NSError **error) {
@@ -209,9 +210,10 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
     NSTextField *_statusLabel;
     NSTextField *_detailLabel;
     NSTextField *_displayStatusLabel;
+    NSTextField *_micHealthLabel;
+    NSTextView *_micHealthLog;
     NSButton *_enabledButton;
     NSButton *_echoButton;
-    NSPopUpButton *_echoProfilePopup;
     NSMutableDictionary *_config;
     NSTimer *_statusTimer;
 }
@@ -242,7 +244,7 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
     MSEnsureDirectories(&directoryError);
     _config = MSLoadConfig();
 
-    _window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 560, 560)
+    _window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 560, 780)
                                           styleMask:NSWindowStyleMaskTitled |
                                                     NSWindowStyleMaskClosable
                                             backing:NSBackingStoreBuffered
@@ -287,17 +289,6 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
     _echoButton.target = self;
     _echoButton.action = @selector(echoChanged:);
     [view addSubview:_echoButton];
-    _echoProfilePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(220, 298, 190, 30)
-                                                   pullsDown:NO];
-    for (NSArray<NSString *> *entry in @[@[@"최고 음질", @"quality"],
-                                          @[@"균형", @"balanced"],
-                                          @[@"강한 제거", @"strong"]]) {
-        [_echoProfilePopup addItemWithTitle:entry[0]];
-        _echoProfilePopup.lastItem.representedObject = entry[1];
-    }
-    _echoProfilePopup.target = self;
-    _echoProfilePopup.action = @selector(echoProfileChanged:);
-    [view addSubview:_echoProfilePopup];
 
     _statusLabel = [self label:@"상태: 엔진 대기 중" frame:NSMakeRect(24, 252, 506, 24)];
     _statusLabel.font = [NSFont boldSystemFontOfSize:13];
@@ -321,6 +312,32 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
     _displayStatusLabel.lineBreakMode = NSLineBreakByWordWrapping;
     _displayStatusLabel.maximumNumberOfLines = 2;
     [view addSubview:_displayStatusLabel];
+
+    for (NSView *existing in view.subviews) {
+        NSRect frame = existing.frame;
+        frame.origin.y += 220;
+        existing.frame = frame;
+    }
+    NSTextField *healthHeader = [self label:@"마이크 경고 · 자동 복구 기록"
+                                      frame:NSMakeRect(24, 218, 512, 24)];
+    healthHeader.font = [NSFont boldSystemFontOfSize:13];
+    [view addSubview:healthHeader];
+    _micHealthLabel = [self label:@"" frame:NSMakeRect(24, 164, 512, 48)];
+    _micHealthLabel.maximumNumberOfLines = 3;
+    _micHealthLabel.lineBreakMode = NSLineBreakByWordWrapping;
+    [view addSubview:_micHealthLabel];
+    NSScrollView *healthScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(24, 24, 512, 132)];
+    healthScroll.hasVerticalScroller = YES;
+    healthScroll.borderType = NSBezelBorder;
+    _micHealthLog = [[NSTextView alloc] initWithFrame:healthScroll.bounds];
+    _micHealthLog.editable = NO;
+    _micHealthLog.selectable = YES;
+    _micHealthLog.font = [NSFont systemFontOfSize:11];
+    _micHealthLog.textContainerInset = NSMakeSize(8, 8);
+    _micHealthLog.autoresizingMask = NSViewWidthSizable;
+    _micHealthLog.textContainer.widthTracksTextView = YES;
+    healthScroll.documentView = _micHealthLog;
+    [view addSubview:healthScroll];
 
     [self refreshDevices];
     [self refreshConfigLabels];
@@ -394,14 +411,6 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
     const BOOL echoEnabled = !_config[@"echoCancellationEnabled"] ||
         [_config[@"echoCancellationEnabled"] boolValue];
     _echoButton.state = echoEnabled ? NSControlStateValueOn : NSControlStateValueOff;
-    NSString *profile = _config[@"echoCancellationProfile"] ?: @"quality";
-    for (NSMenuItem *item in _echoProfilePopup.itemArray) {
-        if ([item.representedObject isEqualToString:profile]) {
-            [_echoProfilePopup selectItem:item];
-            break;
-        }
-    }
-    _echoProfilePopup.enabled = echoEnabled;
 }
 
 - (void)showError:(NSString *)message {
@@ -531,20 +540,11 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
     (void)sender;
     const BOOL enabled = _echoButton.state == NSControlStateValueOn;
     _config[@"echoCancellationEnabled"] = @(enabled);
-    NSString *profile = _echoProfilePopup.selectedItem.representedObject;
-    _config[@"echoCancellationProfile"] = profile ?: @"quality";
+    _config[@"echoCancellationProfile"] = @"adaptive";
     if (enabled && [_devicePopup.selectedItem.representedObject isKindOfClass:[NSString class]]) {
         _config[@"targetDeviceUID"] = _devicePopup.selectedItem.representedObject;
         _config[@"targetDeviceName"] = _devicePopup.selectedItem.title;
     }
-    _echoProfilePopup.enabled = enabled;
-    [self saveAndNotify];
-}
-
-- (void)echoProfileChanged:(id)sender {
-    (void)sender;
-    NSString *profile = _echoProfilePopup.selectedItem.representedObject;
-    _config[@"echoCancellationProfile"] = profile ?: @"quality";
     [self saveAndNotify];
 }
 
@@ -611,6 +611,12 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
 
 - (void)refreshStatus:(NSTimer *)timer {
     (void)timer;
+    NSDictionary *health = MSLoadMicHealth();
+    _micHealthLabel.stringValue = MSMicHealthSummary(health);
+    _micHealthLabel.textColor = [health[@"warning"] boolValue]
+        ? NSColor.systemOrangeColor : NSColor.secondaryLabelColor;
+    NSString *healthLog = MSMicHealthLogText(health);
+    if (![_micHealthLog.string isEqualToString:healthLog]) _micHealthLog.string = healthLog;
     [self refreshDisplayStatus];
     _config = MSLoadConfig();
     _enabledButton.state = [_config[@"enabled"] boolValue] ? NSControlStateValueOn
@@ -618,14 +624,6 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
     const BOOL echoEnabled = !_config[@"echoCancellationEnabled"] ||
         [_config[@"echoCancellationEnabled"] boolValue];
     _echoButton.state = echoEnabled ? NSControlStateValueOn : NSControlStateValueOff;
-    _echoProfilePopup.enabled = echoEnabled;
-    NSString *selectedProfile = _config[@"echoCancellationProfile"] ?: @"quality";
-    for (NSMenuItem *item in _echoProfilePopup.itemArray) {
-        if ([item.representedObject isEqualToString:selectedProfile]) {
-            [_echoProfilePopup selectItem:item];
-            break;
-        }
-    }
     NSData *data = [NSData dataWithContentsOfFile:MSStatusPath()];
     NSDictionary *status = data
         ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil]

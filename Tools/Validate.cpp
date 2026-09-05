@@ -1,6 +1,7 @@
 #include "DSP.hpp"
 #include "REWParser.hpp"
 
+#include <array>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
@@ -42,5 +43,15 @@ int main(int argc, char **argv) {
                   << filter.gainDB << "dB Q" << filter.q << "\n";
     }
     std::cout << "automaticPreampDB=" << dsp.preampDB() << "\n";
+    constexpr std::array<double, 15> bassFrequencies{
+        30.0, 40.0, 50.0, 55.0, 60.0, 65.0, 66.0, 70.0,
+        75.0, 80.0, 100.0, 120.0, 140.0, 160.0, 200.0};
+    for (double frequency : bassFrequencies) {
+        std::cout << "response@" << frequency << "Hz=L"
+                  << macsound::responseDB(left.filters, frequency, sampleRate)
+                  << "dB,R"
+                  << macsound::responseDB(right.filters, frequency, sampleRate)
+                  << "dB\n";
+    }
     return 0;
 }

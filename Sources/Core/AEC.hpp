@@ -11,6 +11,9 @@
 namespace macsound {
 
 enum class EchoProfile {
+    adaptive,
+    // Retained for deterministic regression fixtures. The app migrates every
+    // historical profile name to adaptive and exposes only that mode.
     quality,
     balanced,
     strong,
@@ -35,8 +38,11 @@ struct EchoMetrics {
     double linearReductionDB = 0.0;
     double residualSuppressionDB = 0.0;
     double estimatedDelayMs = 0.0;
+    double referenceLevelDBFS = -120.0;
+    double microphoneLevelDBFS = -120.0;
     std::uint64_t referenceUnderruns = 0;
     std::uint64_t pathChangeCount = 0;
+    std::uint64_t stabilityResetCount = 0;
     EchoConvergenceState convergence = EchoConvergenceState::learning;
 };
 
@@ -165,8 +171,8 @@ private:
     float minimumGain(bool doubleTalk) const;
 
     FFTSetup fftSetup_ = nullptr;
-    EchoProfile profile_ = EchoProfile::quality;
-    std::atomic<EchoProfile> requestedProfile_{EchoProfile::quality};
+    EchoProfile profile_ = EchoProfile::adaptive;
+    std::atomic<EchoProfile> requestedProfile_{EchoProfile::adaptive};
 
     StereoBank referenceReal_;
     StereoBank referenceImaginary_;
@@ -220,6 +226,14 @@ private:
     std::vector<float> covarianceSide_;
     std::vector<float> covarianceCrossReal_;
     std::vector<float> covarianceCrossImaginary_;
+    std::vector<float> historyMidPower_;
+    std::vector<float> historySidePower_;
+    std::vector<float> historyCrossReal_;
+    std::vector<float> historyCrossImaginary_;
+    std::vector<float> referenceMidPowerSum_;
+    std::vector<float> referenceSidePowerSum_;
+    std::vector<float> referenceCrossRealSum_;
+    std::vector<float> referenceCrossImaginarySum_;
     std::vector<float> inverseCovarianceMid_;
     std::vector<float> inverseCovarianceSide_;
     std::vector<float> inverseCovarianceCrossReal_;
@@ -247,10 +261,12 @@ private:
     std::size_t trackingBlocks_ = 0;
     std::size_t nonlinearBetterBlocks_ = 0;
     std::size_t nonlinearWorseBlocks_ = 0;
+    std::size_t farEndHangoverBlocks_ = 0;
     bool nonlinearAccepted_ = false;
     bool promotionSecondBlock_ = false;
     bool shadowTrackingActive_ = false;
     bool referenceDiscontinuity_ = false;
+    std::size_t missingReferenceFrames_ = 0;
     std::array<float, 2> nonlinearInputPower_{1e-4f, 1e-4f};
     float lastNearEndShare_ = 0.0f;
     float bestFarEndReductionDB_ = 0.0f;
@@ -265,7 +281,10 @@ private:
     std::atomic<float> linearReductionDB_{0.0f};
     std::atomic<float> residualSuppressionDB_{0.0f};
     std::atomic<float> estimatedDelayMs_{0.0f};
+    std::atomic<float> referenceLevelDBFS_{-120.0f};
+    std::atomic<float> microphoneLevelDBFS_{-120.0f};
     std::atomic<std::uint64_t> pathChangeCount_{0};
+    std::atomic<std::uint64_t> stabilityResetCount_{0};
 };
 
 }  // namespace macsound

@@ -6,7 +6,7 @@
     <string>io.griplabs.macsound.engine</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/sunggu/Applications/MacTools.app/Contents/Helpers/MacToolsEngine.app/Contents/MacOS/MacToolsEngine</string>
+        <string>/Users/sunggu/Library/Application Support/MacTools/MacToolsEngine.app/Contents/MacOS/MacToolsEngine</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

@@ -20,8 +20,8 @@ the local external-display configuration available without BetterDisplay.
   protection
 - Stable foreground and on-demand shadow filters for automatic speaker-path
   recovery, plus a 257-bin residual echo suppressor for correlated music
-- Short second/third-order Hammerstein paths in the stronger profiles for
-  loudspeaker distortion without a neural model or an extra audio buffer
+- Automatically accepted second/third-order Hammerstein paths for loudspeaker
+  distortion without a neural model or an extra audio buffer
 - One-channel, input-only Audio Server Driver Plug-in for Discord/WebRTC
 - Validated EDID maintenance for the two 32RTX950 displays
 - Global `⌃⌥⌘R` external-display reinitialization shortcut with crash recovery;
@@ -66,19 +66,44 @@ then enable EQ. Imported files are copied to
 `~/Library/Application Support/MacTools/Filters`. An existing MacSound settings
 directory is copied once when MacTools is first launched or installed.
 
-`스피커 소리 제거` is independent from EQ and defaults to `최고 음질`.
+`스피커 소리 제거` is independent from EQ and has one automatic mode.
 
 The always-running engine also owns a lightweight menu-bar item. It exposes the
 selected physical output, EQ and echo-cancellation controls, both display
 actions, engine reload, and a link to the full settings window without adding a
 second resident process.
-The `균형` and `강한 제거` profiles trade progressively stronger residual echo
-suppression for more processing during simultaneous speech. Only the live
-speaker reference is processed; MacTools does not save or transmit audio.
-`최고 음질` prioritizes near-end voice, `균형` adds a third-order loudspeaker
-path, and `강한 제거` adds second- and third-order paths. If M2 input 1 reaches
-approximately -0.5 dBFS, adaptation freezes and the menu reports an input
-overload because clipped microphone samples cannot be reconstructed.
+The automatic mode protects frequency bands containing near-end speech while
+applying stronger residual and nonlinear echo removal only to render-correlated
+bands. Only the live speaker reference is processed; MacTools does not save or
+transmit audio. If M2 input 1 reaches approximately -0.5 dBFS, adaptation
+freezes and the menu reports an input overload because clipped microphone
+samples cannot be reconstructed.
+
+The established echo filter stays active during sudden near-end speech bursts,
+with the same per-band voice protection. An independent nearby device is treated
+as near-end audio: only sound correlated with the selected Mac speaker reference
+is targeted. No additional microphone buffer or lookahead is used.
+
+An independent delay monitor checks up to 800 ms of the speaker-to-microphone
+path. It warns at 200 ms and requests a capture/rate-cycle recovery after three
+consistent, confident measurements at or above the canceller's 256 ms span.
+Silence, ambiguous periodic audio, missing reference, heavily clipped input, and
+unrelated near-end speech are not sufficient evidence for a reset. Isolated
+overloaded points are excluded; at least 95% of the observation must remain usable.
+The delay includes the
+whole render/acoustic/capture path; it is not a measurement of the M2 driver alone.
+The control-thread recovery stops capture, cycles 48 kHz to 44.1 kHz and back,
+checks the restored rate, then restarts capture. A microphone interruption may
+occur. Failures and timeouts attempt to restore 48 kHz, and a restart is reported
+as verified only after two healthy delay measurements. Without suitable speaker
+audio, verification remains pending and then warns after 30 seconds.
+
+Recovery attempts are limited to one per two minutes and three per fifteen
+minutes within the current engine run. The menu's `마이크 경고 · 복구 기록` submenu
+and the settings window show current warnings and timestamped recovery events.
+The latest 64 events survive engine restarts in
+`~/Library/Application Support/MacTools/mic-health.json`; audio is not saved.
+Delay analysis runs off the audio callback using a bounded queue.
 
 On first enable, allow **MacTools Engine** under System Settings > Privacy &
 Security > System Audio Recording. The selected physical device remains the

@@ -38,6 +38,7 @@ inline std::size_t spectrumOffset(std::size_t partition) {
 
 const char* echoProfileName(EchoProfile profile) {
     switch (profile) {
+        case EchoProfile::adaptive: return "adaptive";
         case EchoProfile::balanced: return "balanced";
         case EchoProfile::strong: return "strong";
         case EchoProfile::quality:
@@ -46,9 +47,11 @@ const char* echoProfileName(EchoProfile profile) {
 }
 
 EchoProfile echoProfileFromName(const char* name) {
-    if (name && std::strcmp(name, "balanced") == 0) return EchoProfile::balanced;
-    if (name && std::strcmp(name, "strong") == 0) return EchoProfile::strong;
-    return EchoProfile::quality;
+    (void)name;
+    // Old quality/balanced/strong preferences all migrate to the one public
+    // mode. Keeping the legacy enum values above is useful only for offline
+    // profile-regression fixtures.
+    return EchoProfile::adaptive;
 }
 
 const char* echoConvergenceName(EchoConvergenceState state) {
@@ -248,6 +251,14 @@ EchoCanceller::EchoCanceller()
       covarianceMid_(spectrumBins, 1e-3f), covarianceSide_(spectrumBins, 1e-3f),
       covarianceCrossReal_(spectrumBins, 0.0f),
       covarianceCrossImaginary_(spectrumBins, 0.0f),
+      historyMidPower_(partitions * spectrumBins, 0.0f),
+      historySidePower_(partitions * spectrumBins, 0.0f),
+      historyCrossReal_(partitions * spectrumBins, 0.0f),
+      historyCrossImaginary_(partitions * spectrumBins, 0.0f),
+      referenceMidPowerSum_(spectrumBins, 0.0f),
+      referenceSidePowerSum_(spectrumBins, 0.0f),
+      referenceCrossRealSum_(spectrumBins, 0.0f),
+      referenceCrossImaginarySum_(spectrumBins, 0.0f),
       inverseCovarianceMid_(spectrumBins, 0.0f),
       inverseCovarianceSide_(spectrumBins, 0.0f),
       inverseCovarianceCrossReal_(spectrumBins, 0.0f),
@@ -313,6 +324,14 @@ void EchoCanceller::reset() {
     std::fill(covarianceSide_.begin(), covarianceSide_.end(), 1e-3f);
     std::fill(covarianceCrossReal_.begin(), covarianceCrossReal_.end(), 0.0f);
     std::fill(covarianceCrossImaginary_.begin(), covarianceCrossImaginary_.end(), 0.0f);
+    std::fill(historyMidPower_.begin(), historyMidPower_.end(), 0.0f);
+    std::fill(historySidePower_.begin(), historySidePower_.end(), 0.0f);
+    std::fill(historyCrossReal_.begin(), historyCrossReal_.end(), 0.0f);
+    std::fill(historyCrossImaginary_.begin(), historyCrossImaginary_.end(), 0.0f);
+    std::fill(referenceMidPowerSum_.begin(), referenceMidPowerSum_.end(), 0.0f);
+    std::fill(referenceSidePowerSum_.begin(), referenceSidePowerSum_.end(), 0.0f);
+    std::fill(referenceCrossRealSum_.begin(), referenceCrossRealSum_.end(), 0.0f);
+    std::fill(referenceCrossImaginarySum_.begin(), referenceCrossImaginarySum_.end(), 0.0f);
     std::fill(microphonePower_.begin(), microphonePower_.end(), 1e-6f);
     std::fill(echoPower_.begin(), echoPower_.end(), 1e-6f);
     std::fill(errorPower_.begin(), errorPower_.end(), 1e-6f);
@@ -338,10 +357,12 @@ void EchoCanceller::reset() {
     trackingBlocks_ = 0;
     nonlinearBetterBlocks_ = 0;
     nonlinearWorseBlocks_ = 0;
+    farEndHangoverBlocks_ = 0;
     nonlinearAccepted_ = false;
     promotionSecondBlock_ = false;
     shadowTrackingActive_ = false;
     referenceDiscontinuity_ = false;
+    missingReferenceFrames_ = 0;
     lastNearEndShare_ = 0.0f;
     bestFarEndReductionDB_ = 0.0f;
     activeMix_ = 0.0f;
@@ -377,6 +398,7 @@ void EchoCanceller::inverse(const float* real, const float* imaginary, float* ti
 float EchoCanceller::minimumGain(bool doubleTalk) const {
     if (doubleTalk) {
         switch (profile_) {
+            case EchoProfile::adaptive: return 0.7079458f;
             case EchoProfile::balanced: return 0.7079458f;
             case EchoProfile::strong: return 0.5011872f;
             case EchoProfile::quality:
@@ -384,6 +406,7 @@ float EchoCanceller::minimumGain(bool doubleTalk) const {
         }
     }
     switch (profile_) {
+        case EchoProfile::adaptive: return 0.0316228f;
         case EchoProfile::balanced: return 0.0630957f;
         case EchoProfile::strong: return 0.0158489f;
         case EchoProfile::quality:
@@ -419,16 +442,36 @@ void EchoCanceller::synthesizeLinearEcho(const StereoBank& filterReal,
 }
 
 void EchoCanceller::updateReferenceStatistics() {
-    const std::size_t offset = spectrumOffset(historyPosition_);
+    // Every filter partition is updated from the same error spectrum.  The
+    // normalization must therefore contain the summed power of the complete
+    // 256 ms reference history.  Dividing this value by the active partition
+    // count makes the effective NLMS step grow by as much as 48x and causes a
+    // dynamic full-scale music stream to repeatedly diverge and reset.
+    const std::size_t spectrum = spectrumOffset(historyPosition_);
+    const std::size_t statistics = historyPosition_ * spectrumBins;
     for (std::size_t bin = 0; bin < spectrumBins; ++bin) {
-        const float mr = referenceReal_[0][offset + bin];
-        const float mi = referenceImaginary_[0][offset + bin];
-        const float sr = referenceReal_[1][offset + bin];
-        const float si = referenceImaginary_[1][offset + bin];
-        const float midPower = mr * mr + mi * mi;
-        const float sidePower = sr * sr + si * si;
-        const float crossReal = mr * sr + mi * si;
-        const float crossImaginary = mi * sr - mr * si;
+        const float mr = referenceReal_[0][spectrum + bin];
+        const float mi = referenceImaginary_[0][spectrum + bin];
+        const float sr = referenceReal_[1][spectrum + bin];
+        const float si = referenceImaginary_[1][spectrum + bin];
+        const float newMidPower = mr * mr + mi * mi;
+        const float newSidePower = sr * sr + si * si;
+        const float newCrossReal = mr * sr + mi * si;
+        const float newCrossImaginary = mi * sr - mr * si;
+        const std::size_t slot = statistics + bin;
+        referenceMidPowerSum_[bin] += newMidPower - historyMidPower_[slot];
+        referenceSidePowerSum_[bin] += newSidePower - historySidePower_[slot];
+        referenceCrossRealSum_[bin] += newCrossReal - historyCrossReal_[slot];
+        referenceCrossImaginarySum_[bin] +=
+            newCrossImaginary - historyCrossImaginary_[slot];
+        historyMidPower_[slot] = newMidPower;
+        historySidePower_[slot] = newSidePower;
+        historyCrossReal_[slot] = newCrossReal;
+        historyCrossImaginary_[slot] = newCrossImaginary;
+        const float midPower = std::max(0.0f, referenceMidPowerSum_[bin]);
+        const float sidePower = std::max(0.0f, referenceSidePowerSum_[bin]);
+        const float crossReal = referenceCrossRealSum_[bin];
+        const float crossImaginary = referenceCrossImaginarySum_[bin];
         covarianceMid_[bin] = 0.90f * covarianceMid_[bin] + 0.10f * midPower;
         covarianceSide_[bin] = 0.90f * covarianceSide_[bin] + 0.10f * sidePower;
         covarianceCrossReal_[bin] =
@@ -565,6 +608,7 @@ void EchoCanceller::constrainLinearPartition(StereoBank& filterReal,
 
 bool EchoCanceller::nonlinearStreamEnabled(std::size_t stream) const {
     if (profile_ == EchoProfile::quality) return false;
+    if (profile_ == EchoProfile::adaptive) return true;
     return profile_ == EchoProfile::strong || stream >= 2u;
 }
 
@@ -803,40 +847,40 @@ void EchoCanceller::applyResidualSuppression(const float* microphone,
             voiceProbability = std::max(voiceProbability,
                                         nearEndProbability_[bin + 1u]);
         }
-        if (bin > 1u) {
+        if (profile_ == EchoProfile::adaptive && bin > 1u) {
             voiceProbability = std::max(voiceProbability,
                                         nearEndProbability_[bin - 2u]);
         }
-        if (bin + 2u < spectrumBins) {
+        if (profile_ == EchoProfile::adaptive && bin + 2u < spectrumBins) {
             voiceProbability = std::max(voiceProbability,
                                         nearEndProbability_[bin + 2u]);
         }
         const float normalFloor = minimumGain(false);
         const float protectedVoiceFloor = 1.0f;
-        const float voiceProtection = doubleTalk
-            ? std::clamp((voiceProbability - 0.01f) / 0.12f, 0.0f, 1.0f)
-            : 0.0f;
+        const float voiceThreshold = profile_ == EchoProfile::adaptive ? 0.05f : 0.08f;
+        const float voiceProtection = doubleTalk && voiceProbability >= voiceThreshold
+            ? 1.0f : 0.0f;
         // Double-talk protection is spectral, not global.  A near-end voice
         // bin gets the profile's voice floor while render-only bins retain the
         // full residual-echo suppression.  The old global floor was why music
         // remained audible and masked the talker in balanced/strong modes.
         const float floor = normalFloor +
             voiceProtection * (protectedVoiceFloor - normalFloor);
-        const float profileStrength = profile_ == EchoProfile::strong ? 1024.0f :
-            (profile_ == EchoProfile::balanced ? 1024.0f : 8.0f);
+        const float profileStrength = profile_ == EchoProfile::quality ? 8.0f : 2048.0f;
         const float residualEcho =
             profileStrength * (echoPower_[bin] + lateEchoPower_[bin]);
         const float ratio = std::sqrt(errorPower_[bin] /
             std::max(errorPower_[bin] + residualEcho, 1e-12f));
-        targetGain_[bin] = farActive && !clipping
+        targetGain_[bin] = farActive && !clipping &&
+                !(doubleTalk && profile_ == EchoProfile::quality)
             ? std::clamp(std::max(floor, ratio), floor, 1.0f)
             : 1.0f;
     }
     for (std::size_t bin = 0; bin < spectrumBins; ++bin) {
         const float previous = targetGain_[bin == 0u ? 0u : bin - 1u];
         const float next = targetGain_[bin + 1u < spectrumBins ? bin + 1u : bin];
-        frequencySmoothedGain_[bin] =
-            0.25f * previous + 0.50f * targetGain_[bin] + 0.25f * next;
+        frequencySmoothedGain_[bin] = doubleTalk ? targetGain_[bin] :
+            (0.25f * previous + 0.50f * targetGain_[bin] + 0.25f * next);
         const float smoothing = frequencySmoothedGain_[bin] < residualGain_[bin]
             ? 0.35f : (doubleTalk ? 0.65f : 0.04f);
         residualGain_[bin] += smoothing *
@@ -909,7 +953,23 @@ void EchoCanceller::processBlock(const float* microphone, const float* reference
     }
     farEnergy /= static_cast<float>(blockSize);
     microphoneEnergy /= static_cast<float>(blockSize);
-    const bool farActive = farEnergy > 1e-9f;
+    referenceLevelDBFS_.store(std::clamp(10.0f * std::log10(farEnergy + 1e-12f),
+                                         -120.0f, 6.0f),
+                              std::memory_order_relaxed);
+    microphoneLevelDBFS_.store(std::clamp(10.0f * std::log10(
+                                           microphoneEnergy + 1e-12f),
+                                           -120.0f, 6.0f),
+                               std::memory_order_relaxed);
+    const bool currentFarActive = farEnergy > 1e-9f;
+    if (currentFarActive) {
+        // A room keeps returning the render signal after the current output
+        // block becomes quiet. Keep cancellation alive for the complete
+        // modeled 256 ms path so music gaps do not expose echo tails.
+        farEndHangoverBlocks_ = partitions;
+    } else if (farEndHangoverBlocks_ > 0u) {
+        --farEndHangoverBlocks_;
+    }
+    const bool farActive = currentFarActive || farEndHangoverBlocks_ > 0u;
     const bool inputClipping = microphonePeak >= 0.9440609f;
     inputClipping_.store(inputClipping ? 1u : 0u, std::memory_order_relaxed);
     active_.store(farActive ? 1u : 0u, std::memory_order_relaxed);
@@ -930,7 +990,7 @@ void EchoCanceller::processBlock(const float* microphone, const float* reference
         trackingBlocks_ == 0u;
     const bool fullRateAdaptation = !stableLinearModel ||
         processedBlocks_ % 4u == 0u;
-    if (fullRateAdaptation) updateReferenceStatistics();
+    updateReferenceStatistics();
 
     if (profile_ != EchoProfile::quality) {
         const float* physicalReference[2] = {referenceLeft, referenceRight};
@@ -1114,14 +1174,18 @@ void EchoCanceller::processBlock(const float* microphone, const float* reference
         // full-rate update erodes the talker, while a complete freeze cannot
         // follow a moved loudspeaker.  The separately validated shadow path
         // remains responsible for fast recovery.
+        const bool adaptiveProfile = profile_ == EchoProfile::adaptive;
         const float mainStep = inputClipping || shadowExplainsPath ? 0.0f :
-            (doubleTalk ? 0.001f : 0.010f);
+            (adaptiveProfile ? (doubleTalk ? 0.005f : 0.08f)
+                             : (doubleTalk ? 0.020f : 0.30f));
         // The shadow filter never reaches the output while double-talk is
         // active, so it may keep a guarded path-tracking step.  This lets a
         // real speaker movement recover without teaching the foreground
         // filter the near-end voice.
         const float shadowStep = inputClipping || !evaluateShadow ? 0.0f :
-            (doubleTalk ? 0.040f : (trackingBlocks_ > 0u ? 0.120f : 0.080f));
+            (adaptiveProfile
+                ? (doubleTalk ? 0.025f : (trackingBlocks_ > 0u ? 0.30f : 0.18f))
+                : (doubleTalk ? 0.10f : (trackingBlocks_ > 0u ? 0.60f : 0.40f)));
         adaptLinearFilter(filterReal_, filterImaginary_, errorSpectrumReal_.data(),
                           errorSpectrumImaginary_.data(), mainStep);
         adaptLinearFilter(shadowFilterReal_, shadowFilterImaginary_,
@@ -1129,7 +1193,8 @@ void EchoCanceller::processBlock(const float* microphone, const float* reference
                           shadowStep);
         if (profile_ != EchoProfile::quality) {
             const float nonlinearStep = inputClipping || doubleTalk ? 0.0f :
-                (profile_ == EchoProfile::strong ? 0.008f : 0.010f);
+                (profile_ == EchoProfile::adaptive ? 0.006f :
+                 (profile_ == EchoProfile::strong ? 0.008f : 0.010f));
             std::fill(fftInput_.begin(), fftInput_.begin() + blockSize, 0.0f);
             std::memcpy(fftInput_.data() + blockSize,
                         nonlinearCandidateError_.data(), blockSize * sizeof(float));
@@ -1157,8 +1222,30 @@ void EchoCanceller::processBlock(const float* microphone, const float* reference
             (nonlinearConstraintPosition_ + 1u) % nonlinearPartitions;
     }
 
-    applyResidualSuppression(microphone, error_.data(), output, farActive,
-                             doubleTalk, microphoneEnergy, errorEnergy);
+    const bool finiteModel = std::isfinite(linearErrorEnergy) &&
+        std::isfinite(errorEnergy) && std::isfinite(echoEnergy);
+    const bool boundedModel = errorEnergy <= microphoneEnergy * 4.0f + 1e-8f &&
+        echoEnergy <= microphoneEnergy * 9.0f + 1e-8f;
+    // A nearby talker can dominate the block energy even when the learned
+    // echo estimate remains correct. Requiring a 5% whole-block improvement
+    // in that case repeatedly exposed raw speaker audio between syllables.
+    // Keep the established path during detected double-talk; spectral voice
+    // protection below still preserves the independent nearby source.
+    const bool usefulModel = bestFarEndReductionDB_ >= 3.0f &&
+        (linearErrorEnergy < microphoneEnergy * 0.95f || (converged && doubleTalk));
+    if (finiteModel && boundedModel && usefulModel) {
+        applyResidualSuppression(microphone, error_.data(), output, farActive,
+                                 doubleTalk, microphoneEnergy, errorEnergy);
+    } else {
+        // Until the room model has demonstrated a real improvement, exposing
+        // its residual would attenuate the talker or amplify an unstable
+        // estimate.  Continue learning, but keep the public microphone exactly
+        // equal to M2 input 1.
+        std::memcpy(output, microphone, blockSize * sizeof(float));
+        activeMix_ = 0.0f;
+        reductionDB_.store(0.0f, std::memory_order_relaxed);
+        residualSuppressionDB_.store(0.0f, std::memory_order_relaxed);
+    }
 
     if (promoteShadow) {
         filterReal_.swap(shadowFilterReal_);
@@ -1190,17 +1277,37 @@ void EchoCanceller::process(const float* microphone, const float* referenceLeft,
         nonlinearActive_.store(0, std::memory_order_relaxed);
         inputClipping_.store(0, std::memory_order_relaxed);
         activeMix_ = 0.0f;
-        referenceDiscontinuity_ = true;
+        constexpr std::size_t resetThresholdFrames = sampleRate / 10u;
+        missingReferenceFrames_ = std::min<std::size_t>(
+            resetThresholdFrames, missingReferenceFrames_ + frameCount);
+        referenceDiscontinuity_ = missingReferenceFrames_ >= resetThresholdFrames;
         return;
     }
     if (referenceDiscontinuity_) {
         reset();
-        referenceDiscontinuity_ = false;
     }
+    missingReferenceFrames_ = 0;
     const std::size_t processed = frameCount - frameCount % blockSize;
     for (std::size_t offset = 0; offset < processed; offset += blockSize) {
         processBlock(microphone + offset, referenceLeft + offset,
                      referenceRight + offset, output + offset);
+        float microphonePeak = 0.0f;
+        float outputPeak = 0.0f;
+        bool finite = true;
+        for (std::size_t index = 0; index < blockSize; ++index) {
+            microphonePeak = std::max(microphonePeak,
+                                      std::abs(microphone[offset + index]));
+            const float sample = output[offset + index];
+            finite = finite && std::isfinite(sample);
+            outputPeak = std::max(outputPeak, std::abs(sample));
+        }
+        const float safePeak = std::max(2.0f, microphonePeak * 4.0f);
+        if (!finite || outputPeak > safePeak) {
+            std::memcpy(output + offset, microphone + offset,
+                        blockSize * sizeof(float));
+            stabilityResetCount_.fetch_add(1u, std::memory_order_relaxed);
+            reset();
+        }
     }
     if (processed < frameCount) {
         std::memcpy(output + processed, microphone + processed,
@@ -1219,8 +1326,11 @@ EchoMetrics EchoCanceller::metrics(std::uint64_t referenceUnderruns) const {
     result.residualSuppressionDB =
         residualSuppressionDB_.load(std::memory_order_relaxed);
     result.estimatedDelayMs = estimatedDelayMs_.load(std::memory_order_relaxed);
+    result.referenceLevelDBFS = referenceLevelDBFS_.load(std::memory_order_relaxed);
+    result.microphoneLevelDBFS = microphoneLevelDBFS_.load(std::memory_order_relaxed);
     result.referenceUnderruns = referenceUnderruns;
     result.pathChangeCount = pathChangeCount_.load(std::memory_order_relaxed);
+    result.stabilityResetCount = stabilityResetCount_.load(std::memory_order_relaxed);
     result.convergence = static_cast<EchoConvergenceState>(
         convergenceState_.load(std::memory_order_relaxed));
     return result;

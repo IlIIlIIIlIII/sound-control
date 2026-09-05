@@ -419,9 +419,13 @@ void aecTests() {
         }
         return 10.0 * std::log10(inputEnergy / std::max(outputEnergy, 1e-20));
     };
+    const double adaptiveReduction = measureProfile(EchoProfile::adaptive);
     const double qualityReduction = measureProfile(EchoProfile::quality);
     const double balancedReduction = measureProfile(EchoProfile::balanced);
     const double strongReduction = measureProfile(EchoProfile::strong);
+    expect(adaptiveReduction >= 30.0,
+           "automatic AEC reaches at least 30 dB far-end suppression; got " +
+               std::to_string(adaptiveReduction));
     expect(qualityReduction >= 15.0,
            "quality AEC reaches at least 15 dB far-end suppression; got " +
                std::to_string(qualityReduction));
@@ -534,8 +538,12 @@ void aecTests() {
         }
         return 20.0 * std::log10(std::abs(resultProjection / nearEnergy));
     };
+    const double adaptiveNearGainDB = measureDoubleTalkVoice(EchoProfile::adaptive);
     const double balancedNearGainDB = measureDoubleTalkVoice(EchoProfile::balanced);
     const double strongNearGainDB = measureDoubleTalkVoice(EchoProfile::strong);
+    expect(std::abs(adaptiveNearGainDB) <= 1.5,
+           "automatic AEC preserves double-talk voice within 1.5 dB; got " +
+               std::to_string(adaptiveNearGainDB));
     expect(std::abs(balancedNearGainDB) <= 2.0,
            "balanced AEC preserves double-talk voice within 2 dB; got " +
                std::to_string(balancedNearGainDB));
@@ -562,6 +570,7 @@ void aecTests() {
                                     right.data() + offset, transitionOutput.data(),
                                     EchoCanceller::blockSize, true);
     }
+    const EchoMetrics beforeBriefGap = transitionCanceller.metrics(0);
     transitionCanceller.process(microphone.data() + 48000, silence.data(), silence.data(),
                                 transitionOutput.data(), 512, false);
     transitionCanceller.process(microphone.data() + 48512, silence.data(), silence.data(),
@@ -575,8 +584,22 @@ void aecTests() {
                                 EchoCanceller::blockSize, true);
     expect(std::all_of(resumedOutput.begin(), resumedOutput.end(),
                        [](float sample) { return std::isfinite(sample); }) &&
+               transitionCanceller.metrics(0).linearReductionDB >=
+                   beforeBriefGap.linearReductionDB * 0.75f &&
                transitionCanceller.metrics(0).pathChangeCount == 0u,
-           "AEC restarts cleanly after a reference discontinuity");
+           "AEC preserves its room model across a brief reference outage");
+
+    for (std::size_t missing = 0; missing < 10u; ++missing) {
+        transitionCanceller.process(microphone.data() + 49280,
+                                    silence.data(), silence.data(),
+                                    transitionOutput.data(), 512, false);
+    }
+    transitionCanceller.process(microphone.data() + 54400,
+                                left.data() + 54400,
+                                right.data() + 54400,
+                                resumedOutput.data(), EchoCanceller::blockSize, true);
+    expect(transitionCanceller.metrics(0).linearReductionDB < 0.1,
+           "AEC discards a stale room model after a long reference outage");
 
     // Music-like material stresses the rank-one stereo bins that occur when a
     // centered vocal, bass, or kick is present in both channels.  It also has
@@ -633,9 +656,13 @@ void aecTests() {
         }
         return 10.0 * std::log10(input / std::max(result, 1e-20));
     };
+    const double adaptiveMusic = measureMusic(EchoProfile::adaptive);
     const double qualityMusic = measureMusic(EchoProfile::quality);
     const double balancedMusic = measureMusic(EchoProfile::balanced);
     const double strongMusic = measureMusic(EchoProfile::strong);
+    expect(adaptiveMusic >= 32.0,
+           "automatic AEC removes correlated music by at least 32 dB; got " +
+               std::to_string(adaptiveMusic));
     expect(qualityMusic >= 18.0,
            "quality AEC removes correlated music by at least 18 dB; got " +
                std::to_string(qualityMusic));
@@ -645,6 +672,164 @@ void aecTests() {
     expect(strongMusic >= 38.0,
            "strong AEC removes correlated music by at least 38 dB; got " +
                std::to_string(strongMusic));
+
+    // Real applications commonly render close to 0 dBFS.  Keep the adaptive
+    // filters stable when the digital reference is much hotter than the
+    // synthetic fixtures above and the room path still keeps the microphone
+    // below clipping.
+    std::vector<float> loudLeft(musicFrames, 0.0f);
+    std::vector<float> loudRight(musicFrames, 0.0f);
+    std::vector<float> loudMicrophone(musicFrames, 0.0f);
+    for (std::size_t frame = 0; frame < musicFrames; ++frame) {
+        loudLeft[frame] = std::clamp(musicLeft[frame] * 7.5f, -1.05f, 1.05f);
+        loudRight[frame] = std::clamp(musicRight[frame] * 7.5f, -1.05f, 1.05f);
+        if (frame >= 720u) loudMicrophone[frame] += 0.31f * loudLeft[frame - 720u];
+        if (frame >= 1337u) loudMicrophone[frame] += 0.23f * loudRight[frame - 1337u];
+        if (frame >= 5200u) loudMicrophone[frame] += 0.08f * loudLeft[frame - 5200u];
+    }
+    EchoCanceller loudCanceller;
+    loudCanceller.setProfile(EchoProfile::adaptive);
+    std::vector<float> loudOutput(musicFrames, 0.0f);
+    float loudOutputPeak = 0.0f;
+    for (std::size_t offset = 0; offset < musicFrames;
+         offset += EchoCanceller::blockSize) {
+        loudCanceller.process(loudMicrophone.data() + offset,
+                              loudLeft.data() + offset,
+                              loudRight.data() + offset,
+                              loudOutput.data() + offset,
+                              EchoCanceller::blockSize, true);
+        for (std::size_t index = offset;
+             index < offset + EchoCanceller::blockSize; ++index) {
+            loudOutputPeak = std::max(loudOutputPeak, std::abs(loudOutput[index]));
+        }
+    }
+    expect(std::isfinite(loudOutputPeak) && loudOutputPeak <= 1.0f,
+           "AEC stays bounded with a near-full-scale render; peak=" +
+               std::to_string(loudOutputPeak));
+
+    // A reference that is temporarily unrelated to the microphone must not
+    // make the adaptive bank walk away while it is still learning the room.
+    std::vector<float> unrelatedMicrophone(musicFrames, 0.0f);
+    random = 0x9a83d5e1u;
+    for (std::size_t frame = 0; frame < musicFrames; ++frame) {
+        random = random * 1664525u + 1013904223u;
+        const float noise = static_cast<float>((random >> 8) *
+            (1.0 / 16777216.0) - 0.5);
+        unrelatedMicrophone[frame] = static_cast<float>(
+            0.16 * std::sin(2.0 * 3.141592653589793 * 191.0 * frame / 48000.0) +
+            0.05 * noise);
+    }
+    EchoCanceller unrelatedCanceller;
+    unrelatedCanceller.setProfile(EchoProfile::adaptive);
+    std::vector<float> unrelatedOutput(musicFrames, 0.0f);
+    float unrelatedPeak = 0.0f;
+    for (std::size_t offset = 0; offset < musicFrames;
+         offset += EchoCanceller::blockSize) {
+        unrelatedCanceller.process(unrelatedMicrophone.data() + offset,
+                                   loudLeft.data() + offset,
+                                   loudRight.data() + offset,
+                                   unrelatedOutput.data() + offset,
+                                   EchoCanceller::blockSize, true);
+        for (std::size_t index = offset;
+             index < offset + EchoCanceller::blockSize; ++index) {
+            unrelatedPeak = std::max(unrelatedPeak,
+                                     std::abs(unrelatedOutput[index]));
+        }
+    }
+    expect(std::isfinite(unrelatedPeak) && unrelatedPeak <= 1.0f,
+           "AEC stays bounded before an acoustic path is found; peak=" +
+               std::to_string(unrelatedPeak));
+    expect(std::memcmp(unrelatedMicrophone.data(), unrelatedOutput.data(),
+                       unrelatedOutput.size() * sizeof(float)) == 0,
+           "AEC keeps an unrelated near-end source bit exact before finding a room path");
+
+    // Streaming music has large block-to-block spectral changes that the
+    // stationary tone fixture does not exercise.  Alternate dense transients,
+    // quiet passages, and full-scale sections while retaining a valid room
+    // echo path.
+    std::vector<float> dynamicLeft(musicFrames, 0.0f);
+    std::vector<float> dynamicRight(musicFrames, 0.0f);
+    std::vector<float> dynamicMicrophone(musicFrames, 0.0f);
+    random = 0x66e40cc5u;
+    float lowLeft = 0.0f;
+    float lowRight = 0.0f;
+    for (std::size_t frame = 0; frame < musicFrames; ++frame) {
+        random = random * 1664525u + 1013904223u;
+        const float whiteLeft = static_cast<float>((random >> 8) *
+            (2.0 / 16777216.0) - 1.0);
+        random = random * 1664525u + 1013904223u;
+        const float whiteRight = static_cast<float>((random >> 8) *
+            (2.0 / 16777216.0) - 1.0);
+        lowLeft = 0.82f * lowLeft + 0.18f * whiteLeft;
+        lowRight = 0.79f * lowRight + 0.21f * whiteRight;
+        const std::size_t section = (frame / 4096u) % 6u;
+        const float level = section == 0u ? 0.0f :
+            (section == 1u ? 0.02f : (section == 2u ? 0.90f :
+            (section == 3u ? 0.08f : (section == 4u ? 0.65f : 0.25f))));
+        dynamicLeft[frame] = std::clamp(level *
+            (0.72f * lowLeft + 0.28f * whiteLeft), -1.0f, 1.0f);
+        dynamicRight[frame] = std::clamp(level *
+            (0.70f * lowRight + 0.20f * whiteRight + 0.10f * lowLeft),
+            -1.0f, 1.0f);
+        if (frame >= 720u) {
+            dynamicMicrophone[frame] += 0.35f * dynamicLeft[frame - 720u];
+        }
+        if (frame >= 1337u) {
+            dynamicMicrophone[frame] += 0.28f * dynamicRight[frame - 1337u];
+        }
+        if (frame >= 8420u) {
+            dynamicMicrophone[frame] += 0.08f * dynamicLeft[frame - 8420u];
+        }
+    }
+    EchoCanceller dynamicCanceller;
+    dynamicCanceller.setProfile(EchoProfile::adaptive);
+    std::vector<float> dynamicOutput(musicFrames, 0.0f);
+    float dynamicPeak = 0.0f;
+    std::size_t dynamicBypassBlocks = 0u;
+    std::size_t dynamicTrackingBlocks = 0u;
+    for (std::size_t offset = 0; offset < musicFrames;
+         offset += EchoCanceller::blockSize) {
+        dynamicCanceller.process(dynamicMicrophone.data() + offset,
+                                 dynamicLeft.data() + offset,
+                                 dynamicRight.data() + offset,
+                                 dynamicOutput.data() + offset,
+                                 EchoCanceller::blockSize, true);
+        if (std::memcmp(dynamicMicrophone.data() + offset,
+                        dynamicOutput.data() + offset,
+                        EchoCanceller::blockSize * sizeof(float)) == 0) {
+            ++dynamicBypassBlocks;
+        }
+        if (dynamicCanceller.metrics(0u).convergence ==
+            EchoConvergenceState::tracking) {
+            ++dynamicTrackingBlocks;
+        }
+        for (std::size_t index = offset;
+             index < offset + EchoCanceller::blockSize; ++index) {
+            dynamicPeak = std::max(dynamicPeak, std::abs(dynamicOutput[index]));
+        }
+    }
+    expect(std::isfinite(dynamicPeak) && dynamicPeak <= 1.0f,
+           "AEC stays bounded across music transients; peak=" +
+               std::to_string(dynamicPeak));
+    double dynamicInputEnergy = 0.0;
+    double dynamicOutputEnergy = 0.0;
+    for (std::size_t frame = musicFrames - 48000u; frame < musicFrames; ++frame) {
+        dynamicInputEnergy += dynamicMicrophone[frame] * dynamicMicrophone[frame];
+        dynamicOutputEnergy += dynamicOutput[frame] * dynamicOutput[frame];
+    }
+    const double dynamicReductionDB = 10.0 * std::log10(
+        dynamicInputEnergy / std::max(dynamicOutputEnergy, 1e-20));
+    const auto dynamicMetrics = dynamicCanceller.metrics(0u);
+    expect(dynamicReductionDB >= 24.0,
+           "automatic AEC remains converged across full-scale music dynamics; got " +
+               std::to_string(dynamicReductionDB) + " dB (linear " +
+               std::to_string(dynamicMetrics.linearReductionDB) +
+               " dB, residual " +
+               std::to_string(dynamicMetrics.residualSuppressionDB) +
+               " dB, state " + echoConvergenceName(dynamicMetrics.convergence) +
+               ", bypass blocks " + std::to_string(dynamicBypassBlocks) +
+               ", tracking blocks " + std::to_string(dynamicTrackingBlocks) +
+               ")");
 
     // Speech-like double-talk is broadband and syllabic rather than a single
     // stationary tone.  Verify that each profile keeps the near-end component
@@ -713,15 +898,49 @@ void aecTests() {
         const double farReductionDB = -20.0 * std::log10(
             std::max(std::abs(farGain), 1e-12));
         expect(voiceGainDB >= -voiceLimitDB && voiceGainDB <= 0.5,
-               "speech-like near end stays within the profile voice limit; got " +
+               std::string(echoProfileName(profile)) +
+                   " speech-like near end stays within the profile voice limit; got " +
                    std::to_string(voiceGainDB));
         expect(farReductionDB >= echoTargetDB,
-               "double-talk retains music rejection; got " +
-                   std::to_string(farReductionDB));
+               std::string(echoProfileName(profile)) +
+                   " double-talk retains music rejection; got " +
+                   std::to_string(farReductionDB) + " linear=" +
+                   std::to_string(metrics.linearReductionDB));
     };
+    measureSpeechDoubleTalk(EchoProfile::adaptive, 1.5, 14.5);
     measureSpeechDoubleTalk(EchoProfile::quality, 1.0, 12.0);
-    measureSpeechDoubleTalk(EchoProfile::balanced, 2.0, 15.0);
-    measureSpeechDoubleTalk(EchoProfile::strong, 3.0, 15.0);
+    measureSpeechDoubleTalk(EchoProfile::balanced, 2.0, 14.5);
+    measureSpeechDoubleTalk(EchoProfile::strong, 3.0, 14.5);
+
+    // A separate nearby source can abruptly dominate a learned speaker path.
+    // Measure short windows as well as the average: a raw-mic bypass lasting
+    // only a few blocks is audible even when the whole utterance scores well.
+    EchoCanceller burstCanceller;
+    std::vector<float> burstNear(musicFrames), burstMic(musicFrames), burstOut(musicFrames);
+    for (std::size_t i = 0; i < musicFrames; ++i) {
+        const bool loud = ((i / 4096u) % 3u) != 0;
+        burstNear[i] = nearSpeech[i] * (loud ? 7.0f : 1.0f);
+        burstMic[i] = musicMicrophone[i] + burstNear[i];
+    }
+    for (std::size_t i = 0; i < musicFrames; i += EchoCanceller::blockSize)
+        burstCanceller.process(burstMic.data()+i, musicLeft.data()+i, musicRight.data()+i,
+                               burstOut.data()+i, EchoCanceller::blockSize, true);
+    double worstBurstEcho = 100, worstBurstVoice = 100;
+    for (std::size_t start = speechStart + 4800; start + 2400 <= musicFrames; start += 2400) {
+        double nn=0, ff=0, nf=0, yn=0, yf=0;
+        for (std::size_t i=start; i<start+2400; ++i) {
+            const double n=burstNear[i], f=musicMicrophone[i], y=burstOut[i];
+            nn+=n*n; ff+=f*f; nf+=n*f; yn+=y*n; yf+=y*f;
+        }
+        const double det=std::max(nn*ff-nf*nf,1e-20);
+        const double voice=(yn*ff-yf*nf)/det, echo=(yf*nn-yn*nf)/det;
+        worstBurstVoice=std::min(worstBurstVoice,20*std::log10(std::max(std::abs(voice),1e-12)));
+        worstBurstEcho=std::min(worstBurstEcho,-20*std::log10(std::max(std::abs(echo),1e-12)));
+    }
+    std::cout << "50 ms near-source burst windows: minimum voice gain=" << worstBurstVoice
+              << " dB, minimum echo reduction=" << worstBurstEcho << " dB\n";
+    expect(worstBurstVoice >= -1.5, "nearby source bursts preserve voice in 50 ms windows; got " + std::to_string(worstBurstVoice));
+    expect(worstBurstEcho >= 8.0, "nearby source bursts do not expose raw speaker echo in 50 ms windows; got " + std::to_string(worstBurstEcho));
 
     // Loudspeaker distortion is modeled as a short generalized-Hammerstein
     // path.  Use the same normalized polynomial basis as the runtime, but a
@@ -751,7 +970,7 @@ void aecTests() {
         }
     }
     EchoCanceller nonlinearCanceller;
-    nonlinearCanceller.setProfile(EchoProfile::strong);
+    nonlinearCanceller.setProfile(EchoProfile::adaptive);
     std::vector<float> nonlinearOutput(musicFrames, 0.0f);
     for (std::size_t offset = 0; offset < musicFrames;
          offset += EchoCanceller::blockSize) {
@@ -770,10 +989,10 @@ void aecTests() {
     const double nonlinearReduction = 10.0 * std::log10(
         nonlinearInputEnergy / std::max(nonlinearOutputEnergy, 1e-20));
     expect(nonlinearReduction >= 28.0,
-           "strong AEC removes high-volume nonlinear music by at least 28 dB; got " +
+           "automatic AEC removes high-volume nonlinear music by at least 28 dB; got " +
                std::to_string(nonlinearReduction));
     expect(nonlinearCanceller.metrics(0).nonlinearActive,
-           "strong AEC accepts the nonlinear path only after it improves the estimate");
+           "automatic AEC accepts the nonlinear path only after it improves the estimate");
 
     // Change both acoustic delays and gains after the steady-state cadence has
     // engaged.  The main filter must flag the path loss, wake the faster shadow
@@ -824,8 +1043,11 @@ void aecTests() {
            "AEC recovers from a speaker-path change within two seconds; got " +
                std::to_string(changedPathReduction));
 
-    // A profile switch is an atomic parameter update; it must not require an
-    // audio-route restart or leave a non-finite transition block.
+    // Historical profile names migrate to the one automatic public mode.
+    expect(echoProfileFromName("quality") == EchoProfile::adaptive &&
+               echoProfileFromName("balanced") == EchoProfile::adaptive &&
+               echoProfileFromName("strong") == EchoProfile::adaptive,
+           "legacy AEC profiles migrate to automatic mode");
     EchoCanceller switchingCanceller;
     std::array<float, EchoCanceller::blockSize> switchingOutput{};
     for (std::size_t offset = 0; offset < 48000u * 3u;
@@ -836,14 +1058,14 @@ void aecTests() {
                                    switchingOutput.data(),
                                    EchoCanceller::blockSize, true);
     }
-    switchingCanceller.setProfile(EchoProfile::strong);
+    switchingCanceller.setProfile(EchoProfile::adaptive);
     switchingCanceller.process(musicMicrophone.data() + 48000u * 3u,
                                musicLeft.data() + 48000u * 3u,
                                musicRight.data() + 48000u * 3u,
                                switchingOutput.data(),
                                EchoCanceller::blockSize, true);
-    expect(switchingCanceller.profile() == EchoProfile::strong,
-           "AEC profile switches without rebuilding the route");
+    expect(switchingCanceller.profile() == EchoProfile::adaptive,
+           "AEC remains in automatic mode without rebuilding the route");
     expect(std::all_of(switchingOutput.begin(), switchingOutput.end(),
                        [](float sample) { return std::isfinite(sample); }),
            "AEC profile switch has a finite transition block");

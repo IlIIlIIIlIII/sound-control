@@ -44,10 +44,8 @@ int main() {
         std::string_view name;
         double cpuBudget;
     };
-    constexpr std::array<ProfileRun, 3> profiles{{
-        {macsound::EchoProfile::quality, "quality", 1.00},
-        {macsound::EchoProfile::balanced, "balanced", 1.25},
-        {macsound::EchoProfile::strong, "strong", 1.50},
+    constexpr std::array<ProfileRun, 1> profiles{{
+        {macsound::EchoProfile::adaptive, "automatic", 1.50},
     }};
 
     std::cout << std::fixed << std::setprecision(3);
