@@ -912,6 +912,60 @@ void aecTests() {
     measureSpeechDoubleTalk(EchoProfile::balanced, 2.0, 14.5);
     measureSpeechDoubleTalk(EchoProfile::strong, 3.0, 14.5);
 
+    // A quiet passage follows a learned loud passage while nearby speech
+    // stays audible. Whole-block reduction is no longer a reliable measure
+    // of whether the much smaller echo estimate should remain in use.
+    {
+        EchoCanceller quietCanceller;
+        std::vector<float> left(musicFrames), right(musicFrames), echo(musicFrames),
+            mic(musicFrames), output(musicFrames);
+        for (std::size_t i = 0; i < musicFrames; ++i) {
+            const float gain = i >= speechStart ? 0.03f : 1.0f;
+            left[i] = musicLeft[i] * gain;
+            right[i] = musicRight[i] * gain;
+            if (i >= 720) echo[i] += 0.31f * left[i - 720];
+            if (i >= 1337) echo[i] += 0.23f * right[i - 1337];
+            if (i >= 5200) echo[i] += 0.08f * left[i - 5200];
+            mic[i] = echo[i] + nearSpeech[i];
+        }
+        unsigned bypass = 0;
+        unsigned linearOnly = 0;
+        bool boundedLinearOutput = true;
+        for (std::size_t i = 0; i < musicFrames; i += EchoCanceller::blockSize) {
+            const auto before = quietCanceller.metrics(0).linearOnlyBlocks;
+            quietCanceller.process(mic.data()+i, left.data()+i, right.data()+i,
+                                   output.data()+i, EchoCanceller::blockSize, true);
+            if (quietCanceller.metrics(0).linearOnlyBlocks > before) {
+                ++linearOnly;
+                double inputEnergy = 0, outputEnergy = 0;
+                for (std::size_t j=i; j<i+EchoCanceller::blockSize; ++j) {
+                    inputEnergy += mic[j]*mic[j];
+                    outputEnergy += output[j]*output[j];
+                }
+                boundedLinearOutput = boundedLinearOutput && std::isfinite(outputEnergy) &&
+                    outputEnergy <= inputEnergy * 1.1001 + 1e-12;
+            }
+            if (i > speechStart + 24000 &&
+                std::memcmp(mic.data()+i, output.data()+i, EchoCanceller::blockSize*sizeof(float)) == 0)
+                ++bypass;
+        }
+        double nn=0, ff=0, nf=0, yn=0, yf=0;
+        for (std::size_t i=speechStart+24000; i<musicFrames; ++i) {
+            const double n=nearSpeech[i], f=echo[i], y=output[i];
+            nn+=n*n; ff+=f*f; nf+=n*f; yn+=y*n; yf+=y*f;
+        }
+        const double det=std::max(nn*ff-nf*nf,1e-20);
+        const double voice=20*std::log10(std::max(std::abs((yn*ff-yf*nf)/det),1e-12));
+        const double rejection=-20*std::log10(std::max(std::abs((yf*nn-yn*nf)/det),1e-12));
+        std::cout << "Quiet passage: bypass=" << bypass << ", voice=" << voice
+                  << " dB, echo reduction=" << rejection << " dB\n";
+        expect(bypass == 0, "a quiet learned passage must not repeatedly expose raw microphone blocks");
+        expect(linearOnly > 0 && boundedLinearOutput,
+               "quiet linear subtraction limits each block to a ten percent energy increase");
+        expect(voice >= -1.5, "quiet-passage cancellation preserves nearby speech");
+        expect(rejection >= 8, "quiet-passage cancellation retains the learned echo path");
+    }
+
     // A separate nearby source can abruptly dominate a learned speaker path.
     // Measure short windows as well as the average: a raw-mic bypass lasting
     // only a few blocks is audible even when the whole utterance scores well.

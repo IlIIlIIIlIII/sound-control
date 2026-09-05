@@ -1236,7 +1236,40 @@ void EchoCanceller::processBlock(const float* microphone, const float* reference
     if (finiteModel && boundedModel && usefulModel) {
         applyResidualSuppression(microphone, error_.data(), output, farActive,
                                  doubleTalk, microphoneEnergy, errorEnergy);
+    } else if (finiteModel && boundedModel && converged && !inputClipping) {
+        linearOnlyBlocks_.fetch_add(1u, std::memory_order_relaxed);
+        // A quiet echo can improve the whole microphone block by less than
+        // 5% when nearby speech dominates. Retain the bounded learned linear
+        // subtraction, but do not apply a suppressor without voice confidence.
+        // Chance correlation with nearby speech can make even a correct
+        // echo estimate raise one short block's energy. Limit the subtraction
+        // continuously to a 10% energy increase instead of switching to raw.
+        float estimateEnergy = 0.0f, cross = 0.0f;
+        for (std::size_t i = 0; i < blockSize; ++i) {
+            const float estimate = microphone[i] - linearError_[i];
+            estimateEnergy += estimate * estimate;
+            cross += microphone[i] * estimate;
+        }
+        estimateEnergy /= blockSize;
+        cross /= blockSize;
+        const float allowedIncrease = microphoneEnergy * 0.10f;
+        const float subtraction = std::clamp((cross + std::sqrt(
+            cross * cross + allowedIncrease * estimateEnergy)) /
+            std::max(estimateEnergy, 1e-20f), 0.0f, 1.0f);
+        float outputEnergy = 0.0f;
+        for (std::size_t i = 0; i < blockSize; ++i) {
+            output[i] = microphone[i] + subtraction * (linearError_[i] - microphone[i]);
+            outputEnergy += output[i] * output[i];
+        }
+        outputEnergy /= blockSize;
+        std::memcpy(previousError_.data(), output, blockSize * sizeof(float));
+        std::fill(residualGain_.begin(), residualGain_.end(), 1.0f);
+        activeMix_ = 1.0f;
+        reductionDB_.store(std::max(0.0f, 10.0f * std::log10(
+            (microphoneEnergy + 1e-20f) / (outputEnergy + 1e-20f))), std::memory_order_relaxed);
+        residualSuppressionDB_.store(0.0f, std::memory_order_relaxed);
     } else {
+        modelBypassBlocks_.fetch_add(1u, std::memory_order_relaxed);
         // Until the room model has demonstrated a real improvement, exposing
         // its residual would attenuate the talker or amplify an unstable
         // estimate.  Continue learning, but keep the public microphone exactly
@@ -1331,6 +1364,8 @@ EchoMetrics EchoCanceller::metrics(std::uint64_t referenceUnderruns) const {
     result.referenceUnderruns = referenceUnderruns;
     result.pathChangeCount = pathChangeCount_.load(std::memory_order_relaxed);
     result.stabilityResetCount = stabilityResetCount_.load(std::memory_order_relaxed);
+    result.modelBypassBlocks = modelBypassBlocks_.load(std::memory_order_relaxed);
+    result.linearOnlyBlocks = linearOnlyBlocks_.load(std::memory_order_relaxed);
     result.convergence = static_cast<EchoConvergenceState>(
         convergenceState_.load(std::memory_order_relaxed));
     return result;

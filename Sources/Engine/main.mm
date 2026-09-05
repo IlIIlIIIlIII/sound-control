@@ -158,6 +158,8 @@ static void MSWriteMicStatus(NSString *state,
         @"echoMicrophoneLevelDBFS": @(echoMetrics.microphoneLevelDBFS),
         @"echoReferenceUnderruns": @(echoMetrics.referenceUnderruns),
         @"echoStabilityResetCount": @(echoMetrics.stabilityResetCount),
+        @"echoModelBypassBlocks": @(echoMetrics.modelBypassBlocks),
+        @"echoLinearOnlyBlocks": @(echoMetrics.linearOnlyBlocks),
         @"echoReferenceSampleRate": @(referenceSampleRate),
         @"updatedAt": @([[NSDate date] timeIntervalSince1970]),
     };

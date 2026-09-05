@@ -84,6 +84,14 @@ with the same per-band voice protection. An independent nearby device is treated
 as near-end audio: only sound correlated with the selected Mac speaker reference
 is targeted. No additional microphone buffer or lookahead is used.
 
+During quiet passages, a converged, bounded model can continue linear echo
+subtraction even when its improvement is too small for the residual suppressor's
+confidence gate. This path avoids suppressing nearby speech and continuously
+limits subtraction so each block's energy can increase by at most 10%.
+This fallback is disabled for unlearned, non-finite, unbounded, or clipped cases.
+Runtime status separately counts model bypass and linear-only blocks,
+since total microphone reduction alone does not identify a raw-audio bypass.
+
 An independent delay monitor checks up to 800 ms of the speaker-to-microphone
 path. It warns at 200 ms and requests a capture/rate-cycle recovery after three
 consistent, confident measurements at or above the canceller's 256 ms span.

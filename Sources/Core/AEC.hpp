@@ -43,6 +43,8 @@ struct EchoMetrics {
     std::uint64_t referenceUnderruns = 0;
     std::uint64_t pathChangeCount = 0;
     std::uint64_t stabilityResetCount = 0;
+    std::uint64_t modelBypassBlocks = 0;
+    std::uint64_t linearOnlyBlocks = 0;
     EchoConvergenceState convergence = EchoConvergenceState::learning;
 };
 
@@ -285,6 +287,8 @@ private:
     std::atomic<float> microphoneLevelDBFS_{-120.0f};
     std::atomic<std::uint64_t> pathChangeCount_{0};
     std::atomic<std::uint64_t> stabilityResetCount_{0};
+    std::atomic<std::uint64_t> modelBypassBlocks_{0};
+    std::atomic<std::uint64_t> linearOnlyBlocks_{0};
 };
 
 }  // namespace macsound
