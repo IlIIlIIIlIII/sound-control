@@ -11,8 +11,8 @@
 #include <memory>
 #include <atomic>
 
-using namespace macsound;
-using namespace macsound::win;
+using namespace soundcontrol;
+using namespace soundcontrol::win;
 namespace {
 constexpr UINT deviceMessage=WM_APP+1,trayMessage=WM_APP+2;
 constexpr int renderControl=100,captureControl=101,leftControl=102,rightControl=103,
@@ -32,7 +32,7 @@ std::wstring wide(const std::string& text) {
     const auto n=MultiByteToWideChar(CP_UTF8,0,text.data(),static_cast<int>(text.size()),nullptr,0);
     std::wstring out(n,L' ');MultiByteToWideChar(CP_UTF8,0,text.data(),static_cast<int>(text.size()),out.data(),n);return out;
 }
-void error(const std::wstring& text) {MessageBoxW(window,text.c_str(),L"MacTools",MB_OK|MB_ICONERROR);}
+void error(const std::wstring& text) {MessageBoxW(window,text.c_str(),L"SoundControl",MB_OK|MB_ICONERROR);}
 std::filesystem::path executableDirectory() {wchar_t path[32768]{};GetModuleFileNameW(nullptr,path,32768);return std::filesystem::path(path).parent_path();}
 std::vector<Device> enumerate(EDataFlow flow) {
     std::vector<Device> result;IMMDeviceCollection* collection=nullptr;
@@ -261,7 +261,7 @@ LRESULT CALLBACK procedure(HWND h,UINT message,WPARAM w,LPARAM l) {
         SendMessageW(eqCheck,BM_SETCHECK,configuration.eqEnabled?BST_CHECKED:BST_UNCHECKED,0);
         SendMessageW(aecCheck,BM_SETCHECK,configuration.aecEnabled?BST_CHECKED:BST_UNCHECKED,0);
         tray.cbSize=sizeof(tray);tray.hWnd=h;tray.uID=1;tray.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;
-        tray.uCallbackMessage=trayMessage;tray.hIcon=LoadIconW(nullptr,IDI_APPLICATION);wcscpy_s(tray.szTip,L"MacTools — Windows Audio");Shell_NotifyIconW(NIM_ADD,&tray);
+        tray.uCallbackMessage=trayMessage;tray.hIcon=LoadIconW(nullptr,IDI_APPLICATION);wcscpy_s(tray.szTip,L"SoundControl — Windows Audio");Shell_NotifyIconW(NIM_ADD,&tray);
         SetTimer(h,1,1000,nullptr);updateStatus();return 0;
     case WM_PAINT: {
         PAINTSTRUCT ps;auto dc=BeginPaint(h,&ps);paintPage(dc);EndPaint(h,&ps);return 0;
@@ -350,14 +350,14 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,LPWSTR,int show) {
     int result=0;
     if(argc>1&&wcscmp(argv[1],L"--initialize")==0)result=initialize(argc,argv);
     else {
-        HANDLE mutex=CreateMutexW(nullptr,FALSE,L"Local\\MacToolsWindowsUI");
+        HANDLE mutex=CreateMutexW(nullptr,FALSE,L"Local\\SoundControlWindowsUI");
         if(GetLastError()==ERROR_ALREADY_EXISTS){if(mutex)CloseHandle(mutex);result=0;}
         else {
-            WNDCLASSW wc{};wc.lpfnWndProc=procedure;wc.hInstance=instance;wc.lpszClassName=L"MacToolsWindows";
+            WNDCLASSW wc{};wc.lpfnWndProc=procedure;wc.hInstance=instance;wc.lpszClassName=L"SoundControlWindows";
             wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);wc.hbrBackground=reinterpret_cast<HBRUSH>(COLOR_WINDOW+1);RegisterClassW(&wc);
             RECT workArea{};SystemParametersInfoW(SPI_GETWORKAREA,0,&workArea,0);
             const int initialHeight=std::min(MulDiv(900,GetDpiForSystem(),96),static_cast<int>(workArea.bottom-workArea.top)-40);
-            HWND h=CreateWindowW(wc.lpszClassName,L"MacTools — Windows Audio",WS_OVERLAPPEDWINDOW|WS_VSCROLL|WS_CLIPCHILDREN,CW_USEDEFAULT,CW_USEDEFAULT,MulDiv(900,GetDpiForSystem(),96),initialHeight,nullptr,nullptr,instance,nullptr);
+            HWND h=CreateWindowW(wc.lpszClassName,L"SoundControl — Windows Audio",WS_OVERLAPPEDWINDOW|WS_VSCROLL|WS_CLIPCHILDREN,CW_USEDEFAULT,CW_USEDEFAULT,MulDiv(900,GetDpiForSystem(),96),initialHeight,nullptr,nullptr,instance,nullptr);
             if(h) {
                 notifications=new Notifications;enumerator->RegisterEndpointNotificationCallback(notifications);
                 ShowWindow(h,show);MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){if(!IsDialogMessageW(h,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}

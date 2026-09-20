@@ -6,7 +6,7 @@
 #include <cstring>
 #include <numbers>
 
-namespace macsound {
+namespace soundcontrol {
 namespace {
 
 constexpr std::array<double, 4> kReferenceRates{44100.0, 48000.0, 96000.0, 192000.0};
@@ -1371,4 +1371,4 @@ EchoMetrics EchoCanceller::metrics(std::uint64_t referenceUnderruns) const {
     return result;
 }
 
-}  // namespace macsound
+}  // namespace soundcontrol

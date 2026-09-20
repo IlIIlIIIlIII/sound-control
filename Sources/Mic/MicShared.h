@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#define MS_MIC_SHARED_PATH "/tmp/io.griplabs.macsound.mic.shared"
+#define MS_MIC_SHARED_PATH "/tmp/io.griplabs.soundcontrol.mic.shared"
 #define MS_MIC_SHARED_MAGIC 0x4D534D43u
 #define MS_MIC_SHARED_VERSION 1u
 #define MS_MIC_RING_CAPACITY 65536u

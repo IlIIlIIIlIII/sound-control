@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <array>
 
-namespace mactools::display {
+namespace soundcontrol::display {
 namespace {
 
 constexpr std::array<std::byte, 8> kEDIDHeader{
@@ -136,4 +136,4 @@ std::optional<SwapPlan> makeMO32U24SwapPlan(
     };
 }
 
-}  // namespace mactools::display
+}  // namespace soundcontrol::display

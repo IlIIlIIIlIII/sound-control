@@ -28,17 +28,17 @@
 #include <unistd.h>
 #include <vector>
 
-static NSString *const MSReloadNotification = @"io.griplabs.macsound.reload";
-static NSString *const MSStopNotification = @"io.griplabs.macsound.stop";
+static NSString *const MSReloadNotification = @"io.griplabs.soundcontrol.reload";
+static NSString *const MSStopNotification = @"io.griplabs.soundcontrol.stop";
 
 static NSString *MSBaseDirectory(void) {
-    return [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/MacTools"];
+    return [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/SoundControl"];
 }
 
 static void MSMigrateLegacyDirectory(void) {
     NSFileManager *manager = [NSFileManager defaultManager];
     NSString *legacy = [NSHomeDirectory()
-        stringByAppendingPathComponent:@"Library/Application Support/MacSound"];
+        stringByAppendingPathComponent:@"Library/Application Support/SoundControl"];
     if (![manager fileExistsAtPath:MSBaseDirectory()] && [manager fileExistsAtPath:legacy]) {
         [manager createDirectoryAtPath:[MSBaseDirectory() stringByDeletingLastPathComponent]
            withIntermediateDirectories:YES attributes:nil error:nil];
@@ -105,8 +105,8 @@ static void MSWriteMicStatus(NSString *state,
                              uint64_t callbackCount = 0,
                              double sourceSampleAdvance = 0,
                              bool echoEnabled = false,
-                             macsound::EchoProfile echoProfile = macsound::EchoProfile::adaptive,
-                             const macsound::EchoMetrics& echoMetrics = {},
+                             soundcontrol::EchoProfile echoProfile = soundcontrol::EchoProfile::adaptive,
+                             const soundcontrol::EchoMetrics& echoMetrics = {},
                              double referenceSampleRate = 0) {
     [[NSFileManager defaultManager] createDirectoryAtPath:MSBaseDirectory()
                               withIntermediateDirectories:YES
@@ -120,9 +120,9 @@ static void MSWriteMicStatus(NSString *state,
             echoState = @"idle";
         } else if (echoMetrics.doubleTalk) {
             echoState = @"double-talk";
-        } else if (echoMetrics.convergence == macsound::EchoConvergenceState::tracking) {
+        } else if (echoMetrics.convergence == soundcontrol::EchoConvergenceState::tracking) {
             echoState = @"tracking";
-        } else if (echoMetrics.convergence == macsound::EchoConvergenceState::learning) {
+        } else if (echoMetrics.convergence == soundcontrol::EchoConvergenceState::learning) {
             echoState = @"learning";
         } else {
             echoState = @"active";
@@ -133,7 +133,7 @@ static void MSWriteMicStatus(NSString *state,
         @"error": error ?: @"",
         @"source": @"M2 Input 1",
         @"sourceUID": sourceUID ?: @"",
-        @"virtualDeviceUID": @"io.griplabs.macsound.mic.device",
+        @"virtualDeviceUID": @"io.griplabs.soundcontrol.mic.device",
         @"sampleRate": @(sampleRate),
         @"overruns": @(MSMicOverruns(shared)),
         @"underruns": @(MSMicUnderruns(shared)),
@@ -143,12 +143,12 @@ static void MSWriteMicStatus(NSString *state,
         @"echoCancellationEnabled": @(echoEnabled),
         @"echoCancellationState": echoState,
         @"echoCancellationProfile":
-            [NSString stringWithUTF8String:macsound::echoProfileName(echoProfile)],
+            [NSString stringWithUTF8String:soundcontrol::echoProfileName(echoProfile)],
         @"echoReductionDB": @(echoMetrics.reductionDB),
         @"echoLinearReductionDB": @(echoMetrics.linearReductionDB),
         @"echoResidualSuppressionDB": @(echoMetrics.residualSuppressionDB),
         @"echoConvergenceState":
-            [NSString stringWithUTF8String:macsound::echoConvergenceName(
+            [NSString stringWithUTF8String:soundcontrol::echoConvergenceName(
                 echoMetrics.convergence)],
         @"echoNonlinearActive": @(echoMetrics.nonlinearActive),
         @"echoInputClipping": @(echoMetrics.inputClipping),
@@ -401,7 +401,7 @@ static AudioDeviceID MSFindFallbackInputDevice(NSString *excludedSourceUID) {
     for (AudioObjectID device : devices) {
         if (MSChannelCount(device, kAudioDevicePropertyScopeInput) == 0) continue;
         NSString *uid = MSStringProperty(device, kAudioDevicePropertyDeviceUID);
-        if ([uid isEqualToString:@"io.griplabs.macsound.mic.device"] ||
+        if ([uid isEqualToString:@"io.griplabs.soundcontrol.mic.device"] ||
             (excludedSourceUID.length > 0 && [uid isEqualToString:excludedSourceUID])) {
             continue;
         }
@@ -421,7 +421,7 @@ static void MSSelectFallbackInputIfNeeded(NSString *excludedSourceUID) {
     NSString *currentUID = current == kAudioObjectUnknown
         ? nil : MSStringProperty(current, kAudioDevicePropertyDeviceUID);
     if (current != kAudioObjectUnknown &&
-        ![currentUID isEqualToString:@"io.griplabs.macsound.mic.device"]) {
+        ![currentUID isEqualToString:@"io.griplabs.soundcontrol.mic.device"]) {
         return;
     }
     const AudioDeviceID fallback = MSFindFallbackInputDevice(excludedSourceUID);
@@ -526,7 +526,7 @@ static void MSAtomicMaximum(std::atomic<float> &destination, float value) {
     std::vector<double> _rightScratch;
     std::vector<float> _referenceRouteLeft;
     std::vector<float> _referenceRouteRight;
-    std::unique_ptr<macsound::StereoDSP> _dsp;
+    std::unique_ptr<soundcontrol::StereoDSP> _dsp;
     std::atomic<uint64_t> _xruns;
     std::atomic<float> _inputPeak;
     std::atomic<float> _outputPeak;
@@ -552,15 +552,15 @@ static void MSAtomicMaximum(std::atomic<float> &destination, float value) {
     std::vector<Float32> _micProcessedScratch;
     std::vector<Float32> _micReferenceLeft;
     std::vector<Float32> _micReferenceRight;
-    std::unique_ptr<macsound::StereoReferenceTimeline> _referenceTimeline;
-    std::unique_ptr<macsound::EchoCanceller> _echoCanceller;
+    std::unique_ptr<soundcontrol::StereoReferenceTimeline> _referenceTimeline;
+    std::unique_ptr<soundcontrol::EchoCanceller> _echoCanceller;
     std::atomic<bool> _echoCancellationEnabled;
     std::atomic<bool> _echoResetRequested;
-    macsound::EchoProfile _echoProfile;
+    soundcontrol::EchoProfile _echoProfile;
     uint64_t _micReferenceGeneration;
-    std::unique_ptr<macsound::EchoDelayMonitor> _micDelayMonitor;
-    macsound::MicRecoveryPolicy _micRecoveryPolicy;
-    macsound::MicRateRecovery _micRateRecovery;
+    std::unique_ptr<soundcontrol::EchoDelayMonitor> _micDelayMonitor;
+    soundcontrol::MicRecoveryPolicy _micRecoveryPolicy;
+    soundcontrol::MicRateRecovery _micRateRecovery;
     NSMutableDictionary *_micHealth;
     NSTimer *_micRecoveryTimer;
     BOOL _micRecoveryInProgress;
@@ -625,10 +625,10 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
 - (void)setupStatusItem {
     _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
     _statusItem.button.image = MSMenuBarLaptopImage();
-    _statusItem.button.image.accessibilityDescription = @"MacTools";
-    _statusItem.button.toolTip = @"MacTools";
+    _statusItem.button.image.accessibilityDescription = @"SoundControl";
+    _statusItem.button.toolTip = @"SoundControl";
 
-    _statusMenu = [[NSMenu alloc] initWithTitle:@"MacTools"];
+    _statusMenu = [[NSMenu alloc] initWithTitle:@"SoundControl"];
     _statusMenu.delegate = self;
     [self buildStatusMenuItems];
     _statusItem.menu = _statusMenu;
@@ -636,7 +636,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
 }
 
 - (void)buildStatusMenuItems {
-    _engineStatusItem = [[NSMenuItem alloc] initWithTitle:@"MacTools · 상태 확인 중"
+    _engineStatusItem = [[NSMenuItem alloc] initWithTitle:@"SoundControl · 상태 확인 중"
                                                    action:nil keyEquivalent:@""];
     _engineStatusItem.enabled = NO;
     [_statusMenu addItem:_engineStatusItem];
@@ -754,7 +754,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
     NSString *targetName = _config[@"targetDeviceName"] ?: @"선택 안 됨";
     BOOL targetConnected = MSFindDevice(_config[@"targetDeviceUID"]) != kAudioObjectUnknown;
     NSString *connection = targetConnected ? @"" : @" · 연결 안 됨";
-    _engineStatusItem.title = [NSString stringWithFormat:@"MacTools · %@ · %@%@",
+    _engineStatusItem.title = [NSString stringWithFormat:@"SoundControl · %@ · %@%@",
         [self engineStateTitle:state], targetName, connection];
 
     BOOL eqEnabled = [_config[@"enabled"] boolValue];
@@ -889,7 +889,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
 - (NSURL *)outerApplicationURL {
     NSURL *url = NSBundle.mainBundle.bundleURL;
     while (url.path.length > 1) {
-        if ([url.lastPathComponent isEqualToString:@"MacTools.app"]) return url;
+        if ([url.lastPathComponent isEqualToString:@"SoundControl.app"]) return url;
         url = [url URLByDeletingLastPathComponent];
     }
     return nil;
@@ -899,7 +899,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
     (void)sender;
     NSURL *applicationURL = [self outerApplicationURL];
     if (!applicationURL) {
-        _menuError = @"MacTools 설정 앱을 찾지 못했습니다.";
+        _menuError = @"SoundControl 설정 앱을 찾지 못했습니다.";
         return;
     }
     NSWorkspaceOpenConfiguration *configuration = [NSWorkspaceOpenConfiguration configuration];
@@ -921,7 +921,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
 
 - (void)start {
     MSMigrateLegacyDirectory();
-    _micDelayMonitor = std::make_unique<macsound::EchoDelayMonitor>();
+    _micDelayMonitor = std::make_unique<soundcontrol::EchoDelayMonitor>();
     _micHealth = [MSLoadMicHealth() mutableCopy];
     NSArray *previousEvents = [_micHealth[@"events"] isKindOfClass:NSArray.class]
         ? _micHealth[@"events"] : @[];
@@ -930,7 +930,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
                     MIN(previousEvents.count, 64ul))] mutableCopy];
     [self setMicHealthState:@"waiting" message:@"자동 복구: 스피커 신호를 기다리는 중입니다."
                      warning:NO];
-    _referenceTimeline = std::make_unique<macsound::StereoReferenceTimeline>();
+    _referenceTimeline = std::make_unique<soundcontrol::StereoReferenceTimeline>();
     _displayController = [MTDisplayController new];
     [_displayController start];
     // Publish the menu before touching Core Audio.  Route creation can involve
@@ -968,11 +968,11 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
                       styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
                         backing:NSBackingStoreBuffered
                           defer:NO];
-        _microphonePermissionWindow.title = @"MacTools 마이크 접근";
+        _microphonePermissionWindow.title = @"SoundControl 마이크 접근";
         _microphonePermissionWindow.releasedWhenClosed = NO;
 
         NSTextField *permissionMessage = [NSTextField wrappingLabelWithString:
-            @"M2 입력 1을 MacTools Mic으로 전달하려면 마이크 접근이 필요합니다.\n"
+            @"M2 입력 1을 SoundControl Mic으로 전달하려면 마이크 접근이 필요합니다.\n"
              "이어지는 macOS 대화상자에서 ‘허용’을 눌러 주세요."];
         permissionMessage.frame = NSMakeRect(28, 42, 384, 64);
         permissionMessage.alignment = NSTextAlignmentCenter;
@@ -981,7 +981,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
         [_microphonePermissionWindow makeKeyAndOrderFront:nil];
         [NSApp activateIgnoringOtherApps:YES];
         MSWriteMicStatus(@"permission required",
-                         @"MacTools Engine의 마이크 접근 승인을 기다리는 중입니다.",
+                         @"SoundControl Engine의 마이크 접근 승인을 기다리는 중입니다.",
                          _config[@"micDeviceUID"], 0, _micShared);
         dispatch_async(dispatch_get_main_queue(), ^{
             [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio
@@ -996,7 +996,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
                         [self reconcileMic];
                     } else {
                         MSWriteMicStatus(@"permission required",
-                                         @"시스템 설정 > 개인정보 보호 및 보안 > 마이크에서 MacTools Engine을 허용하세요.",
+                                         @"시스템 설정 > 개인정보 보호 및 보안 > 마이크에서 SoundControl Engine을 허용하세요.",
                                          self->_config[@"micDeviceUID"], 0, self->_micShared);
                     }
                 });
@@ -1009,7 +1009,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
             [self reconcileMic];
         } else {
             MSWriteMicStatus(@"permission required",
-                             @"시스템 설정 > 개인정보 보호 및 보안 > 마이크에서 MacTools Engine을 허용하세요.",
+                             @"시스템 설정 > 개인정보 보호 및 보안 > 마이크에서 SoundControl Engine을 허용하세요.",
                              _config[@"micDeviceUID"], 0, _micShared);
         }
     }
@@ -1021,8 +1021,8 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
         [updatedConfig[@"echoCancellationEnabled"] boolValue];
     updatedConfig[@"echoCancellationProfile"] = @"adaptive";
     NSString *profileName = @"adaptive";
-    const macsound::EchoProfile profile =
-        macsound::echoProfileFromName(profileName.UTF8String);
+    const soundcontrol::EchoProfile profile =
+        soundcontrol::echoProfileFromName(profileName.UTF8String);
 
     _config = updatedConfig;
     _echoProfile = profile;
@@ -1117,7 +1117,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
     if (!_micPermissionResolved) return;
     if (!_micPermissionGranted) {
         MSWriteMicStatus(@"permission required",
-                         @"시스템 설정 > 개인정보 보호 및 보안 > 마이크에서 MacTools Engine을 허용하세요.",
+                         @"시스템 설정 > 개인정보 보호 및 보안 > 마이크에서 SoundControl Engine을 허용하세요.",
                          _config[@"micDeviceUID"], 0, _micShared);
         return;
     }
@@ -1126,12 +1126,12 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
             MSSelectFallbackInputIfNeeded(_micSourceUID);
             [self stopMic];
             MSWriteMicStatus(@"source disconnected",
-                             @"MacTools Mic을 내리고 M2 연결을 기다리는 중입니다. 연결되면 자동으로 복원합니다.",
+                             @"SoundControl Mic을 내리고 M2 연결을 기다리는 중입니다. 연결되면 자동으로 복원합니다.",
                              _micSourceUID, 0, _micShared);
             return;
         }
         if (_micNeedsDefaultSelection) {
-            const AudioDeviceID virtualMic = MSFindDevice(@"io.griplabs.macsound.mic.device");
+            const AudioDeviceID virtualMic = MSFindDevice(@"io.griplabs.soundcontrol.mic.device");
             if (virtualMic != kAudioObjectUnknown) {
                 (void)MSSetDefaultDevice(kAudioHardwarePropertyDefaultInputDevice, virtualMic);
                 _micNeedsDefaultSelection = NO;
@@ -1147,9 +1147,9 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
             ? currentSampleTime - _micReportedSampleTime : 0;
         _micReportedSampleTime = currentSampleTime;
         const bool echoEnabled = _echoCancellationEnabled.load(std::memory_order_relaxed);
-        const macsound::EchoMetrics echoMetrics = _echoCanceller
+        const soundcontrol::EchoMetrics echoMetrics = _echoCanceller
             ? _echoCanceller->metrics(_referenceTimeline ? _referenceTimeline->underruns() : 0)
-            : macsound::EchoMetrics{};
+            : soundcontrol::EchoMetrics{};
         [self monitorMicHealth:echoEnabled];
         if (_micRecoveryInProgress) return;
         MSWriteMicStatus(@"running", @"", _micSourceUID, 48000.0, _micShared,
@@ -1203,7 +1203,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
     _micHealth[@"rejectedPoints"] = @(observation.rejectedPoints);
     const auto decision = _micRecoveryPolicy.observe(observation, now);
     if (_micRecoveryVerification) {
-        if (decision == macsound::MicHealthDecision::healthy) ++_micGoodMeasurements;
+        if (decision == soundcontrol::MicHealthDecision::healthy) ++_micGoodMeasurements;
         else if (observation.fresh) _micGoodMeasurements = 0;
         if (_micGoodMeasurements >= 2) {
             _micRecoveryVerification = NO;
@@ -1223,10 +1223,10 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
     }
     NSString *previous = _micHealth[@"state"];
     switch (decision) {
-        case macsound::MicHealthDecision::recover:
+        case soundcontrol::MicHealthDecision::recover:
             [self beginMicRecovery:observation.delayMs];
             break;
-        case macsound::MicHealthDecision::warning: {
+        case soundcontrol::MicHealthDecision::warning: {
             NSString *message = [NSString stringWithFormat:
                 @"반향 지연 %.1fms · 256ms 처리 한계에 접근하거나 초과했습니다. 반복 여부를 확인합니다.", observation.delayMs];
             if (![previous isEqual:@"warning"])
@@ -1234,18 +1234,18 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
             [self setMicHealthState:@"warning" message:message warning:YES];
             break;
         }
-        case macsound::MicHealthDecision::limited: {
+        case soundcontrol::MicHealthDecision::limited: {
             NSString *message = @"입력 지연이 계속됩니다. 반복 중단을 막기 위해 자동 복구를 제한했습니다 (2분 간격, 15분당 최대 3회).";
             if (![previous isEqual:@"limited"])
                 [self recordMicHealth:@"warning" code:@"recovery-limited" message:message];
             [self setMicHealthState:@"limited" message:message warning:YES];
             break;
         }
-        case macsound::MicHealthDecision::healthy:
+        case soundcontrol::MicHealthDecision::healthy:
             [self setMicHealthState:@"healthy" message:[NSString stringWithFormat:
                 @"반향 지연 %.1fms · 자동 복구 감시 중", observation.delayMs] warning:NO];
             break;
-        case macsound::MicHealthDecision::unavailable:
+        case soundcontrol::MicHealthDecision::unavailable:
             // Keep unresolved warnings visible through silence and double-talk.
             if (![_micHealth[@"warning"] boolValue])
                 [self setMicHealthState:@"waiting" message:@"자동 복구: 지연을 판별할 수 있는 스피커 신호를 기다리는 중입니다."
@@ -1293,7 +1293,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
     _micRecoveryInProgress = NO;
     if (_micRecoverySharedOutput) [self reconcile];
     _micRecoverySharedOutput = NO;
-    if (state == macsound::MicRateRecovery::State::captureStarted) {
+    if (state == soundcontrol::MicRateRecovery::State::captureStarted) {
         _micRecoveryVerification = YES;
         _micGoodMeasurements = 0;
         _micVerificationDeadline = NSProcessInfo.processInfo.systemUptime + 30;
@@ -1323,7 +1323,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
         [_config[@"echoCancellationEnabled"] boolValue];
     _config[@"echoCancellationProfile"] = @"adaptive";
     NSString *profileName = @"adaptive";
-    _echoProfile = macsound::echoProfileFromName(profileName.UTF8String);
+    _echoProfile = soundcontrol::echoProfileFromName(profileName.UTF8String);
     _echoCancellationEnabled.store(echoEnabled, std::memory_order_relaxed);
     if (_config[@"micEnabled"] && ![_config[@"micEnabled"] boolValue]) {
         MSSelectFallbackInputIfNeeded(_config[@"micDeviceUID"]);
@@ -1348,7 +1348,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
         _micSourceUID = sourceUID;
         MSSelectFallbackInputIfNeeded(sourceUID);
         MSWriteMicStatus(@"source disconnected",
-                         @"M2 입력 1을 찾지 못했습니다. MacTools Mic은 숨겨지고 다른 입력이 기본값이 됩니다.",
+                         @"M2 입력 1을 찾지 못했습니다. SoundControl Mic은 숨겨지고 다른 입력이 기본값이 됩니다.",
                          sourceUID, 0, _micShared);
         return;
     }
@@ -1373,7 +1373,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
     _micReferenceRight.assign(maximumFrames, 0.0f);
     // Keep one preallocated canceller for the whole M2 run. Menu toggles only
     // flip an atomic flag, so Discord never loses the virtual input device.
-    _echoCanceller = std::make_unique<macsound::EchoCanceller>();
+    _echoCanceller = std::make_unique<soundcontrol::EchoCanceller>();
     _echoCanceller->setProfile(_echoProfile);
     if (!_echoCanceller->valid()) {
         _echoCanceller.reset();
@@ -1408,13 +1408,13 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
         return;
     }
 
-    const AudioDeviceID virtualMic = MSFindDevice(@"io.griplabs.macsound.mic.device");
+    const AudioDeviceID virtualMic = MSFindDevice(@"io.griplabs.soundcontrol.mic.device");
     NSString *message = @"";
     if (virtualMic != kAudioObjectUnknown) {
         (void)MSSetDefaultDevice(kAudioHardwarePropertyDefaultInputDevice, virtualMic);
         _micNeedsDefaultSelection = NO;
     } else {
-        message = @"MacTools Mic 장치가 게시되기를 기다리는 중입니다.";
+        message = @"SoundControl Mic 장치가 게시되기를 기다리는 중입니다.";
     }
     MSWriteMicStatus(@"running", message, sourceUID, requiredRate, _micShared);
 }
@@ -1568,14 +1568,14 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
         return;
     }
 
-    std::unique_ptr<macsound::StereoDSP> dsp;
+    std::unique_ptr<soundcontrol::StereoDSP> dsp;
     if (eqEnabled) {
-        const auto left = macsound::parseREWConfigurablePEQFile(
+        const auto left = soundcontrol::parseREWConfigurablePEQFile(
             std::filesystem::path(MSFilterPath(YES).fileSystemRepresentation),
-            macsound::Channel::left);
-        const auto right = macsound::parseREWConfigurablePEQFile(
+            soundcontrol::Channel::left);
+        const auto right = soundcontrol::parseREWConfigurablePEQFile(
             std::filesystem::path(MSFilterPath(NO).fileSystemRepresentation),
-            macsound::Channel::right);
+            soundcontrol::Channel::right);
         if (!left || !right) {
             NSString *message = !left
                 ? [NSString stringWithUTF8String:left.error.c_str()]
@@ -1583,7 +1583,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
             MSWriteStatus(@"waiting for filters", message, 0, 0, _xruns.load(), 0, 0);
             return;
         }
-        dsp = std::make_unique<macsound::StereoDSP>();
+        dsp = std::make_unique<soundcontrol::StereoDSP>();
         std::string dspError;
         if (!dsp->configure(left.filters, right.filters, targetRate, dspError)) {
             MSWriteStatus(@"error", [NSString stringWithUTF8String:dspError.c_str()],
@@ -1601,7 +1601,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
 
     CATapDescription *tapDescription = [[CATapDescription alloc]
         initExcludingProcesses:@[@(processObject)] andDeviceUID:targetUID withStream:0];
-    tapDescription.name = @"MacTools Output Reference Tap";
+    tapDescription.name = @"SoundControl Output Reference Tap";
     [tapDescription setPrivate:YES];
     tapDescription.muteBehavior = CATapMutedWhenTapped;
     tapDescription.processRestoreEnabled = YES;
@@ -1609,7 +1609,7 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
     OSStatus status = AudioHardwareCreateProcessTap(tapDescription, &_tap);
     if (status != noErr || _tap == kAudioObjectUnknown) {
         NSString *message = [NSString stringWithFormat:
-            @"오디오 탭 생성 실패: %@. 시스템 설정 > 개인정보 보호 및 보안 > 시스템 오디오 녹음에서 MacTools Engine 권한을 확인하세요.",
+            @"오디오 탭 생성 실패: %@. 시스템 설정 > 개인정보 보호 및 보안 > 시스템 오디오 녹음에서 SoundControl Engine 권한을 확인하세요.",
             MSOSStatusDescription(status)];
         MSWriteStatus(@"permission required", message, targetRate, 0,
                       _xruns.load(), 0, 0);
@@ -1628,10 +1628,10 @@ static OSStatus MSMicDeviceIOProc(AudioDeviceID device,
         return;
     }
 
-    NSString *aggregateUID = [NSString stringWithFormat:@"io.griplabs.macsound.private.%@",
+    NSString *aggregateUID = [NSString stringWithFormat:@"io.griplabs.soundcontrol.private.%@",
                                                         NSUUID.UUID.UUIDString];
     NSDictionary *aggregateDescription = @{
-        @kAudioAggregateDeviceNameKey: @"MacTools Private EQ Route",
+        @kAudioAggregateDeviceNameKey: @"SoundControl Private EQ Route",
         @kAudioAggregateDeviceUIDKey: aggregateUID,
         @kAudioAggregateDeviceIsPrivateKey: @YES,
         @kAudioAggregateDeviceIsStackedKey: @YES,
@@ -1895,7 +1895,7 @@ int main(int argc, const char *argv[]) {
             (void)write(STDOUT_FILENO, "\n", 1);
             return [snapshot[@"edid"][@"error"] length] == 0 ? 0 : 1;
         }
-        const int singletonDescriptor = open("/tmp/io.griplabs.macsound.engine.lock",
+        const int singletonDescriptor = open("/tmp/io.griplabs.soundcontrol.engine.lock",
                                              O_RDWR | O_CREAT | O_CLOEXEC, 0666);
         if (singletonDescriptor < 0 ||
             flock(singletonDescriptor, LOCK_EX | LOCK_NB) != 0) {

@@ -8,12 +8,12 @@
 
 int main(int argc, char **argv) {
     if (argc < 3 || argc > 4) {
-        std::cerr << "Usage: MacToolsValidate L.txt R.txt [sample-rate]\n";
+        std::cerr << "Usage: SoundControlValidate L.txt R.txt [sample-rate]\n";
         return 2;
     }
     const double sampleRate = argc == 4 ? std::strtod(argv[3], nullptr) : 48000.0;
-    const auto left = macsound::parseREWConfigurablePEQFile(argv[1], macsound::Channel::left);
-    const auto right = macsound::parseREWConfigurablePEQFile(argv[2], macsound::Channel::right);
+    const auto left = soundcontrol::parseREWConfigurablePEQFile(argv[1], soundcontrol::Channel::left);
+    const auto right = soundcontrol::parseREWConfigurablePEQFile(argv[2], soundcontrol::Channel::right);
     if (!left) {
         std::cerr << "L: " << left.error << '\n';
         return 1;
@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    macsound::StereoDSP dsp;
+    soundcontrol::StereoDSP dsp;
     std::string error;
     if (!dsp.configure(left.filters, right.filters, sampleRate, error)) {
         std::cerr << error << '\n';
@@ -48,9 +48,9 @@ int main(int argc, char **argv) {
         75.0, 80.0, 100.0, 120.0, 140.0, 160.0, 200.0};
     for (double frequency : bassFrequencies) {
         std::cout << "response@" << frequency << "Hz=L"
-                  << macsound::responseDB(left.filters, frequency, sampleRate)
+                  << soundcontrol::responseDB(left.filters, frequency, sampleRate)
                   << "dB,R"
-                  << macsound::responseDB(right.filters, frequency, sampleRate)
+                  << soundcontrol::responseDB(right.filters, frequency, sampleRate)
                   << "dB\n";
     }
     return 0;

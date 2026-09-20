@@ -2,16 +2,16 @@
 #include <shlobj.h>
 #include <cmath>
 
-namespace macsound::win {
+namespace soundcontrol::win {
 std::filesystem::path dataDirectory() {
-#ifdef MACTOOLS_TESTING
+#ifdef SOUNDCONTROL_TESTING
     wchar_t root[32768]{};
     GetTempPathW(32768,root);
-    return std::filesystem::path(root)/(L"MacTools-contract-"+std::to_wstring(GetCurrentProcessId()));
+    return std::filesystem::path(root)/(L"SoundControl-contract-"+std::to_wstring(GetCurrentProcessId()));
 #endif
     PWSTR path = nullptr;
     if (FAILED(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, nullptr, &path))) return {};
-    const auto result = std::filesystem::path(path) / L"MacTools";
+    const auto result = std::filesystem::path(path) / L"SoundControl";
     CoTaskMemFree(path); return result;
 }
 SharedFile::~SharedFile() {

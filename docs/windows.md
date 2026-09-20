@@ -30,7 +30,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tests\WindowsInstallerTests.
 cmake --install build\windows-msvc --config Release --prefix build\windows-msvc\package
 ```
 
-결과물은 `MacToolsWindows.exe`, `MacToolsAPO.dll`, 설치/제거 PowerShell 스크립트다. 빌드와 테스트는 시스템 오디오에 APO를 등록하지 않는다. Windows CI는 MSVC 빌드·테스트·서명 전 패키징을 수행한다.
+결과물은 `SoundControlWindows.exe`, `SoundControlAPO.dll`, 설치/제거 PowerShell 스크립트다. 빌드와 테스트는 시스템 오디오에 APO를 등록하지 않는다. Windows CI는 MSVC 빌드·테스트·서명 전 패키징을 수행한다.
 
 ## 현재 PC 초기 설정
 
@@ -41,12 +41,12 @@ cmake --install build\windows-msvc --config Release --prefix build\windows-msvc\
 - 초기 왼쪽 EQ: `E:\Speaker\L.txt`
 - 초기 오른쪽 EQ: `E:\Speaker\R.txt`
 
-선택은 endpoint ID로 저장된다. 파일은 검증 후 `%ProgramData%\MacTools\L.txt`, `R.txt`로 복사되므로 이후 E: 드라이브가 없어도 동작한다. 최초 설치에서 위 파일이 없으면 초기화를 중단하며, 원래 오디오 효과 설정을 복원한다. 이후 설정 창에서 다른 REW 파일을 가져올 수 있다.
+선택은 endpoint ID로 저장된다. 파일은 검증 후 `%ProgramData%\SoundControl\L.txt`, `R.txt`로 복사되므로 이후 E: 드라이브가 없어도 동작한다. 최초 설치에서 위 파일이 없으면 초기화를 중단하며, 원래 오디오 효과 설정을 복원한다. 이후 설정 창에서 다른 REW 파일을 가져올 수 있다.
 
 L: 66Hz/−12dB/Q7.40, 140Hz/−12dB/Q3.21.
 R: 65Hz/−8.4dB/Q8.00, 142Hz/−12dB/Q3.36.
 
-설정과 최근 64개 상태 변경 기록은 `%ProgramData%\MacTools`에 저장된다. 오디오 샘플은 기록하지 않는다. 설정 앱을 닫으면 트레이에 남고, 앱을 완전히 종료해도 이미 설치된 APO 효과는 유지된다.
+설정과 최근 64개 상태 변경 기록은 `%ProgramData%\SoundControl`에 저장된다. 오디오 샘플은 기록하지 않는다. 설정 앱을 닫으면 트레이에 남고, 앱을 완전히 종료해도 이미 설치된 APO 효과는 유지된다.
 
 ## 설치 전 확인과 제한
 
@@ -61,7 +61,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 `
   -CheckOnly
 ```
 
-서명 조건을 충족한 패키지에서는 설정 창의 **설치 및 적용**으로 관리자 설치를 실행한다. 설치 경로는 `%ProgramFiles%\MacTools`다. 복원용 원본 레지스트리 값은 일반 사용자가 수정할 수 없는 해당 폴더에 보관한다.
+서명 조건을 충족한 패키지에서는 설정 창의 **설치 및 적용**으로 관리자 설치를 실행한다. 설치 경로는 `%ProgramFiles%\SoundControl`다. 복원용 원본 레지스트리 값은 일반 사용자가 수정할 수 없는 해당 폴더에 보관한다.
 
 로컬 설치기는 기존 APO 체인이 없는 endpoint에만 연결한다. OEM 효과가 존재하면 덮어쓰지 않고 중단한다. 레지스트리 접근이 거부되면 소유권/ACL을 강제로 변경하지 않고 복원한다. 이 도구는 특정 PC용 COM/endpoint 등록 방식이며, Microsoft 서명·HLK 인증을 받은 범용 드라이버 INF 패키지가 아니다.
 

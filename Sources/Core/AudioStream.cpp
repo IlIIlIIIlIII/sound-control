@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace macsound {
+namespace soundcontrol {
 namespace {
 std::uint64_t offsetTime(std::uint64_t time, std::size_t frames) {
     return time + (frames * 10000000ull + 24000) / 48000;

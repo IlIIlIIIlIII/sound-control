@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(MacTools VERSION 0.6.5 LANGUAGES C CXX)
+project(SoundControl VERSION 0.6.5 LANGUAGES C CXX)
 
 if(APPLE)
     enable_language(OBJCXX)
@@ -20,7 +20,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
-add_library(MacToolsCore STATIC
+add_library(SoundControlCore STATIC
     Sources/Core/AudioStream.cpp
     Sources/Core/AEC.cpp
     Sources/Core/MicHealth.cpp
@@ -28,44 +28,44 @@ add_library(MacToolsCore STATIC
     Sources/Core/DSP.cpp
     Sources/Display/DisplayTools.cpp
 )
-target_include_directories(MacToolsCore PUBLIC Sources/Core Sources/Display)
+target_include_directories(SoundControlCore PUBLIC Sources/Core Sources/Display)
 if(APPLE)
     find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
-    target_link_libraries(MacToolsCore PUBLIC "${ACCELERATE_FRAMEWORK}")
+    target_link_libraries(SoundControlCore PUBLIC "${ACCELERATE_FRAMEWORK}")
 endif()
 if(MSVC)
-    target_compile_options(MacToolsCore PRIVATE /W4 /permissive-)
+    target_compile_options(SoundControlCore PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(MacToolsCore PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(SoundControlCore PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-add_executable(MacToolsTests Tests/CoreTests.cpp)
+add_executable(SoundControlTests Tests/CoreTests.cpp)
 if(APPLE)
-    target_sources(MacToolsTests PRIVATE Sources/Mic/MicShared.c)
+    target_sources(SoundControlTests PRIVATE Sources/Mic/MicShared.c)
 endif()
-target_include_directories(MacToolsTests PRIVATE Sources/Mic Sources/Display)
-target_link_libraries(MacToolsTests PRIVATE MacToolsCore)
+target_include_directories(SoundControlTests PRIVATE Sources/Mic Sources/Display)
+target_link_libraries(SoundControlTests PRIVATE SoundControlCore)
 
-add_executable(MacToolsValidate Tools/Validate.cpp)
-target_link_libraries(MacToolsValidate PRIVATE MacToolsCore)
+add_executable(SoundControlValidate Tools/Validate.cpp)
+target_link_libraries(SoundControlValidate PRIVATE SoundControlCore)
 
-add_executable(MacToolsMicHealthTests Tests/MicHealthTests.cpp)
-target_link_libraries(MacToolsMicHealthTests PRIVATE MacToolsCore)
+add_executable(SoundControlMicHealthTests Tests/MicHealthTests.cpp)
+target_link_libraries(SoundControlMicHealthTests PRIVATE SoundControlCore)
 
-add_executable(MacToolsBenchmark Tools/Benchmark.cpp)
-target_link_libraries(MacToolsBenchmark PRIVATE MacToolsCore)
+add_executable(SoundControlBenchmark Tools/Benchmark.cpp)
+target_link_libraries(SoundControlBenchmark PRIVATE SoundControlCore)
 
-add_executable(MacToolsAECBenchmark Tools/AECBenchmark.cpp)
-target_link_libraries(MacToolsAECBenchmark PRIVATE MacToolsCore)
+add_executable(SoundControlAECBenchmark Tools/AECBenchmark.cpp)
+target_link_libraries(SoundControlAECBenchmark PRIVATE SoundControlCore)
 
 find_package(Threads REQUIRED)
-add_executable(MacToolsStreamTests Tests/AudioStreamTests.cpp)
-target_link_libraries(MacToolsStreamTests PRIVATE MacToolsCore Threads::Threads)
+add_executable(SoundControlStreamTests Tests/AudioStreamTests.cpp)
+target_link_libraries(SoundControlStreamTests PRIVATE SoundControlCore Threads::Threads)
 
 enable_testing()
-add_test(NAME MacToolsStreamTests COMMAND MacToolsStreamTests)
-add_test(NAME MacToolsCoreTests COMMAND MacToolsTests)
-add_test(NAME MacToolsMicHealthTests COMMAND MacToolsMicHealthTests)
+add_test(NAME SoundControlStreamTests COMMAND SoundControlStreamTests)
+add_test(NAME SoundControlCoreTests COMMAND SoundControlTests)
+add_test(NAME SoundControlMicHealthTests COMMAND SoundControlMicHealthTests)
 
 if(WIN32)
     add_subdirectory(Sources/Windows)
@@ -100,14 +100,14 @@ if(NOT EXISTS "${APPLE_NULL_AUDIO_SOURCE_DIR}/NullAudio.c")
          DESTINATION "${APPLE_NULL_AUDIO_SOURCE_DIR}")
 endif()
 
-add_executable(MacToolsMicHealthUITests Tests/MicHealthUITests.mm Sources/Mic/MicHealthUI.mm)
-target_include_directories(MacToolsMicHealthUITests PRIVATE Sources/Mic)
-target_compile_options(MacToolsMicHealthUITests PRIVATE -fobjc-arc -Wall -Wextra)
-target_link_libraries(MacToolsMicHealthUITests PRIVATE "${FOUNDATION_FRAMEWORK}")
+add_executable(SoundControlMicHealthUITests Tests/MicHealthUITests.mm Sources/Mic/MicHealthUI.mm)
+target_include_directories(SoundControlMicHealthUITests PRIVATE Sources/Mic)
+target_compile_options(SoundControlMicHealthUITests PRIVATE -fobjc-arc -Wall -Wextra)
+target_link_libraries(SoundControlMicHealthUITests PRIVATE "${FOUNDATION_FRAMEWORK}")
 
-add_executable(MacToolsAudioProbe Tools/AudioProbe.mm)
-target_compile_options(MacToolsAudioProbe PRIVATE -fobjc-arc -Wall -Wextra)
-target_link_libraries(MacToolsAudioProbe PRIVATE
+add_executable(SoundControlAudioProbe Tools/AudioProbe.mm)
+target_compile_options(SoundControlAudioProbe PRIVATE -fobjc-arc -Wall -Wextra)
+target_link_libraries(SoundControlAudioProbe PRIVATE
     "${COREAUDIO_FRAMEWORK}"
     "${FOUNDATION_FRAMEWORK}"
 )
@@ -115,23 +115,23 @@ target_link_libraries(MacToolsAudioProbe PRIVATE
 set_source_files_properties(Resources/32RTX950.edid.base64 PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources
 )
-set_source_files_properties(Resources/MacTools.icns PROPERTIES
+set_source_files_properties(Resources/SoundControl.icns PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources
 )
-add_executable(MacToolsEngine MACOSX_BUNDLE
+add_executable(SoundControlEngine MACOSX_BUNDLE
     Sources/Engine/main.mm
     Sources/Mic/MicShared.c
     Sources/Mic/MicHealthUI.mm
     Sources/Display/DisplayController.mm
     Resources/32RTX950.edid.base64
 )
-set_target_properties(MacToolsEngine PROPERTIES
+set_target_properties(SoundControlEngine PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Resources/EngineInfo.plist"
 )
-target_include_directories(MacToolsEngine PRIVATE Sources/Core Sources/Mic Sources/Display)
-target_compile_options(MacToolsEngine PRIVATE -fobjc-arc -Wall -Wextra)
-target_link_libraries(MacToolsEngine PRIVATE
-    MacToolsCore
+target_include_directories(SoundControlEngine PRIVATE Sources/Core Sources/Mic Sources/Display)
+target_compile_options(SoundControlEngine PRIVATE -fobjc-arc -Wall -Wextra)
+target_link_libraries(SoundControlEngine PRIVATE
+    SoundControlCore
     "${APPKIT_FRAMEWORK}"
     "${AVFOUNDATION_FRAMEWORK}"
     "${CARBON_FRAMEWORK}"
@@ -141,73 +141,73 @@ target_link_libraries(MacToolsEngine PRIVATE
     "${IOKIT_FRAMEWORK}"
 )
 
-add_library(MacToolsMic MODULE
-    Sources/Driver/MacSoundMic.c
+add_library(SoundControlMic MODULE
+    Sources/Driver/SoundControlMic.c
     Sources/Mic/MicShared.c
 )
-set_target_properties(MacToolsMic PROPERTIES
+set_target_properties(SoundControlMic PROPERTIES
     BUNDLE TRUE
     BUNDLE_EXTENSION driver
     PREFIX ""
-    OUTPUT_NAME "MacToolsMic"
+    OUTPUT_NAME "SoundControlMic"
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Resources/MicDriverInfo.plist.in"
 )
-target_include_directories(MacToolsMic PRIVATE
+target_include_directories(SoundControlMic PRIVATE
     Sources/Mic
     "${APPLE_NULL_AUDIO_SOURCE_DIR}"
 )
-target_compile_options(MacToolsMic PRIVATE -fblocks -Wno-deprecated-declarations)
-target_link_libraries(MacToolsMic PRIVATE
+target_compile_options(SoundControlMic PRIVATE -fblocks -Wno-deprecated-declarations)
+target_link_libraries(SoundControlMic PRIVATE
     "${COREAUDIO_FRAMEWORK}"
     "${COREFOUNDATION_FRAMEWORK}"
 )
 
-add_executable(MacTools MACOSX_BUNDLE Sources/App/main.mm Sources/Mic/MicHealthUI.mm Resources/MacTools.icns)
-set_target_properties(MacTools PROPERTIES
+add_executable(SoundControl MACOSX_BUNDLE Sources/App/main.mm Sources/Mic/MicHealthUI.mm Resources/SoundControl.icns)
+set_target_properties(SoundControl PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Resources/AppInfo.plist.in"
 )
-target_include_directories(MacTools PRIVATE Sources/Core Sources/Display Sources/Mic)
-target_compile_options(MacTools PRIVATE -fobjc-arc -Wall -Wextra)
-target_link_libraries(MacTools PRIVATE
-    MacToolsCore
+target_include_directories(SoundControl PRIVATE Sources/Core Sources/Display Sources/Mic)
+target_compile_options(SoundControl PRIVATE -fobjc-arc -Wall -Wextra)
+target_link_libraries(SoundControl PRIVATE
+    SoundControlCore
     "${APPKIT_FRAMEWORK}"
     "${COREAUDIO_FRAMEWORK}"
     "${FOUNDATION_FRAMEWORK}"
     "${UNIFORMTYPEIDENTIFIERS_FRAMEWORK}"
 )
-add_dependencies(MacTools MacToolsEngine)
-add_custom_target(MacToolsPackage ALL
+add_dependencies(SoundControl SoundControlEngine)
+add_custom_target(SoundControlPackage ALL
     # Sign the standalone helper first.  The installer copies this exact
     # identity out of the parent bundle so TCC permissions survive rebuilds.
     COMMAND /usr/bin/codesign --force --sign - --timestamp=none
-            --identifier io.griplabs.macsound.engine
-            --requirements "${CMAKE_CURRENT_SOURCE_DIR}/Resources/MacToolsEngine.requirements"
-            "$<TARGET_BUNDLE_DIR:MacToolsEngine>"
+            --identifier io.griplabs.soundcontrol.engine
+            --requirements "${CMAKE_CURRENT_SOURCE_DIR}/Resources/SoundControlEngine.requirements"
+            "$<TARGET_BUNDLE_DIR:SoundControlEngine>"
     COMMAND "${CMAKE_COMMAND}" -E make_directory
-            "$<TARGET_BUNDLE_DIR:MacTools>/Contents/Helpers"
+            "$<TARGET_BUNDLE_DIR:SoundControl>/Contents/Helpers"
     COMMAND "${CMAKE_COMMAND}" -E rm -f
-            "$<TARGET_BUNDLE_DIR:MacTools>/Contents/Helpers/MacToolsEngine"
+            "$<TARGET_BUNDLE_DIR:SoundControl>/Contents/Helpers/SoundControlEngine"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory
-            "$<TARGET_BUNDLE_DIR:MacTools>/Contents/Helpers/MacToolsEngine.app"
+            "$<TARGET_BUNDLE_DIR:SoundControl>/Contents/Helpers/SoundControlEngine.app"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
-            "$<TARGET_BUNDLE_DIR:MacToolsEngine>"
-            "$<TARGET_BUNDLE_DIR:MacTools>/Contents/Helpers/MacToolsEngine.app"
+            "$<TARGET_BUNDLE_DIR:SoundControlEngine>"
+            "$<TARGET_BUNDLE_DIR:SoundControl>/Contents/Helpers/SoundControlEngine.app"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory
-            "$<TARGET_BUNDLE_DIR:MacTools>/Contents/Resources/MacToolsMic.driver"
+            "$<TARGET_BUNDLE_DIR:SoundControl>/Contents/Resources/SoundControlMic.driver"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
-            "$<TARGET_BUNDLE_DIR:MacToolsMic>"
-            "$<TARGET_BUNDLE_DIR:MacTools>/Contents/Resources/MacToolsMic.driver"
+            "$<TARGET_BUNDLE_DIR:SoundControlMic>"
+            "$<TARGET_BUNDLE_DIR:SoundControl>/Contents/Resources/SoundControlMic.driver"
     COMMAND /usr/bin/codesign --force --sign - --timestamp=none
-            "$<TARGET_BUNDLE_DIR:MacTools>/Contents/Resources/MacToolsMic.driver"
+            "$<TARGET_BUNDLE_DIR:SoundControl>/Contents/Resources/SoundControlMic.driver"
     COMMAND /usr/bin/codesign --force --sign - --timestamp=none
-            --identifier io.griplabs.macsound.engine
-            --requirements "${CMAKE_CURRENT_SOURCE_DIR}/Resources/MacToolsEngine.requirements"
-            "$<TARGET_BUNDLE_DIR:MacTools>/Contents/Helpers/MacToolsEngine.app"
+            --identifier io.griplabs.soundcontrol.engine
+            --requirements "${CMAKE_CURRENT_SOURCE_DIR}/Resources/SoundControlEngine.requirements"
+            "$<TARGET_BUNDLE_DIR:SoundControl>/Contents/Helpers/SoundControlEngine.app"
     COMMAND /usr/bin/codesign --force --sign - --timestamp=none
-            --identifier io.griplabs.macsound
-            --requirements "${CMAKE_CURRENT_SOURCE_DIR}/Resources/MacTools.requirements"
-            "$<TARGET_BUNDLE_DIR:MacTools>"
-    DEPENDS MacTools MacToolsEngine MacToolsMic
+            --identifier io.griplabs.soundcontrol
+            --requirements "${CMAKE_CURRENT_SOURCE_DIR}/Resources/SoundControl.requirements"
+            "$<TARGET_BUNDLE_DIR:SoundControl>"
+    DEPENDS SoundControl SoundControlEngine SoundControlMic
 )
 
-add_test(NAME MacToolsMicHealthUITests COMMAND MacToolsMicHealthUITests)
+add_test(NAME SoundControlMicHealthUITests COMMAND SoundControlMicHealthUITests)

@@ -1,4 +1,4 @@
-LIBRARY MacToolsAPO
+LIBRARY SoundControlAPO
 EXPORTS
     DllGetClassObject PRIVATE
     DllCanUnloadNow PRIVATE

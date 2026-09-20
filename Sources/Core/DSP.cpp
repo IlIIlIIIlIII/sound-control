@@ -6,7 +6,7 @@
 #include <iterator>
 #include <numbers>
 
-namespace macsound {
+namespace soundcontrol {
 namespace {
 
 std::complex<double> response(const BiquadCoefficients& c, double omega) {
@@ -168,4 +168,4 @@ void StereoDSP::processInterleaved(double* stereo, std::size_t frames) {
     }
 }
 
-}  // namespace macsound
+}  // namespace soundcontrol

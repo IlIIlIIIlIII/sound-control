@@ -40,17 +40,17 @@ int main() {
     }
 
     struct ProfileRun {
-        macsound::EchoProfile profile;
+        soundcontrol::EchoProfile profile;
         std::string_view name;
         double cpuBudget;
     };
     constexpr std::array<ProfileRun, 1> profiles{{
-        {macsound::EchoProfile::adaptive, "automatic", 1.50},
+        {soundcontrol::EchoProfile::adaptive, "automatic", 1.50},
     }};
 
     std::cout << std::fixed << std::setprecision(3);
     for (const ProfileRun& run : profiles) {
-        macsound::EchoCanceller canceller;
+        soundcontrol::EchoCanceller canceller;
         canceller.setProfile(run.profile);
         if (!canceller.valid()) return 1;
         std::vector<double> callbackMicroseconds(blocks, 0.0);
@@ -72,7 +72,7 @@ int main() {
                           << " s), linear=" << canceller.metrics(0).linearReductionDB
                           << ", total=" << canceller.metrics(0).reductionDB
                           << ", state="
-                          << macsound::echoConvergenceName(canceller.metrics(0).convergence)
+                          << soundcontrol::echoConvergenceName(canceller.metrics(0).convergence)
                           << "\n";
                 return 2;
             }
@@ -81,7 +81,7 @@ int main() {
         const std::size_t p99Index = static_cast<std::size_t>(
             0.99 * static_cast<double>(callbackMicroseconds.size() - 1u));
         const double cpu = elapsed / seconds * 100.0;
-        const macsound::EchoMetrics metrics = canceller.metrics(0);
+        const soundcontrol::EchoMetrics metrics = canceller.metrics(0);
         std::cout << run.name << ": cpu=" << cpu << "% (target "
                   << run.cpuBudget << "%), p99=" << callbackMicroseconds[p99Index]
                   << " us, linear=" << metrics.linearReductionDB

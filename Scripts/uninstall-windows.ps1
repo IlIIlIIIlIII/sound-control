@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'WindowsInstall.psm1') -Force
 Assert-Administrator
-$directory = Join-Path $env:ProgramFiles 'MacTools'
+$directory = Join-Path $env:ProgramFiles 'SoundControl'
 $backupPath = Join-Path $directory 'installation-backup.clixml'
 if (-not (Test-Path -LiteralPath $backupPath)) { throw 'No installation backup found. No audio settings changed.' }
 $backup = Import-Clixml -LiteralPath $backupPath

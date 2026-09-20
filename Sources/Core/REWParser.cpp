@@ -13,7 +13,7 @@
 #include <windows.h>
 #endif
 
-namespace macsound {
+namespace soundcontrol {
 namespace {
 
 std::string pathText(const std::filesystem::path& path) {
@@ -201,4 +201,4 @@ ParseResult importREWConfigurablePEQFile(const std::filesystem::path& source,
     return parsed;
 }
 
-}  // namespace macsound
+}  // namespace soundcontrol

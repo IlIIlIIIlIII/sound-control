@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-namespace macsound {
+namespace soundcontrol {
 
 enum class Channel { left, right };
 
@@ -32,4 +32,4 @@ ParseResult importREWConfigurablePEQFile(const std::filesystem::path& source,
                                          const std::filesystem::path& destination,
                                          Channel expectedChannel);
 
-}  // namespace macsound
+}  // namespace soundcontrol

@@ -16,8 +16,8 @@
 #include <vector>
 
 NSString *const MTDisplayReinitializeNotification =
-    @"io.griplabs.macsound.display.reinitialize";
-NSString *const MTDisplaySwapNotification = @"io.griplabs.macsound.display.swap";
+    @"io.griplabs.soundcontrol.display.reinitialize";
+NSString *const MTDisplaySwapNotification = @"io.griplabs.soundcontrol.display.swap";
 
 namespace {
 
@@ -33,7 +33,7 @@ using MPDisplaySetRotationFn = void (*)(id, SEL, int32_t);
 
 NSString *MTBaseDirectory(void) {
     return [NSHomeDirectory() stringByAppendingPathComponent:
-        @"Library/Application Support/MacTools"];
+        @"Library/Application Support/SoundControl"];
 }
 
 NSString *MTDisplayStatusPath(void) {
@@ -145,8 +145,8 @@ NSData *MTDesiredEDID(NSString **error) {
     std::string validationError;
     const auto bytes = std::span<const std::byte>(
         static_cast<const std::byte *>(data.bytes), data.length);
-    if (!data || !mactools::display::validateEDID(bytes, validationError) ||
-        !mactools::display::isTarget32RTX950EDID(bytes)) {
+    if (!data || !soundcontrol::display::validateEDID(bytes, validationError) ||
+        !soundcontrol::display::isTarget32RTX950EDID(bytes)) {
         if (error) {
             *error = [NSString stringWithFormat:@"내장 EDID가 올바르지 않습니다: %s",
                                                 validationError.c_str()];
@@ -179,7 +179,7 @@ NSArray<NSNumber *> *MTOrderedOnlineExternalDisplayIDs(BOOL *hasBuiltIn) {
         return @[];
     }
     BOOL builtin = NO;
-    std::vector<mactools::display::ReinitializeDisplay> external;
+    std::vector<soundcontrol::display::ReinitializeDisplay> external;
     for (uint32_t index = 0; index < count; ++index) {
         const CGDirectDisplayID display = ids[index];
         if (CGDisplayIsBuiltin(display)) {
@@ -194,7 +194,7 @@ NSArray<NSNumber *> *MTOrderedOnlineExternalDisplayIDs(BOOL *hasBuiltIn) {
     }
     if (hasBuiltIn) *hasBuiltIn = builtin;
     NSMutableArray<NSNumber *> *ordered = [NSMutableArray array];
-    for (const auto display : mactools::display::makeReinitializeOrder(
+    for (const auto display : soundcontrol::display::makeReinitializeOrder(
              std::move(external))) {
         [ordered addObject:@(display)];
     }
@@ -219,9 +219,9 @@ void MTRequestDisplayProbe(void) {
     }
 }
 
-std::vector<mactools::display::DisplayGeometry> MTDisplayGeometries(void) {
+std::vector<soundcontrol::display::DisplayGeometry> MTDisplayGeometries(void) {
     uint32_t count = 0;
-    std::vector<mactools::display::DisplayGeometry> result;
+    std::vector<soundcontrol::display::DisplayGeometry> result;
     if (CGGetOnlineDisplayList(0, nullptr, &count) != kCGErrorSuccess || count == 0) {
         return result;
     }
@@ -507,7 +507,7 @@ static void MTDisplayReconfigurationCallback(CGDirectDisplayID display,
                 reinterpret_cast<const std::byte *>(CFDataGetBytePtr(current)),
                 static_cast<std::size_t>(CFDataGetLength(current)));
             const BOOL exact = [(__bridge NSData *)current isEqualToData:desired];
-            if (exact || mactools::display::isTarget32RTX950EDID(bytes)) {
+            if (exact || soundcontrol::display::isTarget32RTX950EDID(bytes)) {
                 ++matched;
                 if (apply && !exact) {
                     if (set(avService, 1, (__bridge CFDataRef)desired) == kIOReturnSuccess) {
@@ -602,7 +602,7 @@ static void MTDisplayReconfigurationCallback(CGDirectDisplayID display,
 - (void)swapMO32U24Displays {
     if (_swapping || _reinitializing) return;
     std::string planError;
-    auto plan = mactools::display::makeMO32U24SwapPlan(MTDisplayGeometries(), planError);
+    auto plan = soundcontrol::display::makeMO32U24SwapPlan(MTDisplayGeometries(), planError);
     if (!plan) {
         [self writeStatus:@"error" action:@"swap"
                     error:[NSString stringWithUTF8String:planError.c_str()]
@@ -690,7 +690,7 @@ static void MTDisplayReconfigurationCallback(CGDirectDisplayID display,
     NSDictionary *edid = [self inspectEDIDApplying:NO];
     std::string planError;
     const auto geometries = MTDisplayGeometries();
-    const auto swapPlan = mactools::display::makeMO32U24SwapPlan(geometries, planError);
+    const auto swapPlan = soundcontrol::display::makeMO32U24SwapPlan(geometries, planError);
     return @{
         @"edid": edid,
         @"onlineDisplayCount": @(geometries.size()),

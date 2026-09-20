@@ -5,13 +5,13 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>ko</string>
     <key>CFBundleExecutable</key>
-    <string>MacToolsEngine</string>
+    <string>SoundControlEngine</string>
     <key>CFBundleIdentifier</key>
-    <string>io.griplabs.macsound.engine</string>
+    <string>io.griplabs.soundcontrol.engine</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>MacTools Engine</string>
+    <string>SoundControl Engine</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -23,7 +23,7 @@
     <key>LSMinimumSystemVersion</key>
     <string>26.0</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>MOTU M2 입력 1을 MacTools Mic으로 전달하려면 마이크 접근이 필요합니다.</string>
+    <string>MOTU M2 입력 1을 SoundControl Mic으로 전달하려면 마이크 접근이 필요합니다.</string>
     <key>NSAudioCaptureUsageDescription</key>
     <string>선택한 출력 장치에 좌우 독립 EQ를 적용하려면 시스템 오디오 접근이 필요합니다.</string>
 </dict>

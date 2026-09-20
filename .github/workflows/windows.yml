@@ -18,5 +18,5 @@ jobs:
         run: cmake --install build --config Release --prefix build/package
       - uses: actions/upload-artifact@v4
         with:
-          name: MacTools-Windows-x64-unsigned
+          name: SoundControl-Windows-x64-unsigned
           path: build/package

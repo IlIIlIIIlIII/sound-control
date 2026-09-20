@@ -28,7 +28,7 @@ MSVC x64용 CMake/PowerShell 빌드와 GitHub Actions 워크플로를 추가했�
 
 ## 미완료: 실제 오디오 장치 적용
 
-SMSL USB DAC 및 MOTU In 1-2 endpoint가 존재하는 것을 확인했지만 설치 사전 점검에서 `MacToolsAPO.dll`의 서명이 `NotSigned`로 확인되어 설치가 중단되었다.
+SMSL USB DAC 및 MOTU In 1-2 endpoint가 존재하는 것을 확인했지만 설치 사전 점검에서 `SoundControlAPO.dll`의 서명이 `NotSigned`로 확인되어 설치가 중단되었다.
 
 - 장치 효과 레지스트리 및 Windows 오디오 보안 설정은 변경하지 않았다.
 - 실제 audiodg 로딩, 스피커 EQ 측정, 실제 마이크 반향 감소, 통화 앱 호환성, 실장치 재연결은 아직 검증하지 않았다.

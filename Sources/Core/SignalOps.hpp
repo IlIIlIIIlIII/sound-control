@@ -5,7 +5,7 @@
 // only setup creation allocates. FFT scaling matches Accelerate's complex FFT.
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
-namespace macsound::signal {
+namespace soundcontrol::signal {
 using BiquadSetup = vDSP_biquad_SetupD;
 using FFTSetup = ::FFTSetup;
 using SplitComplex = DSPSplitComplex;
@@ -30,7 +30,7 @@ inline constexpr auto multiplyComplex = vDSP_zvmul;
 #include <numbers>
 #include <vector>
 
-namespace macsound::signal {
+namespace soundcontrol::signal {
 struct BiquadState { std::vector<double> coefficients; };
 using BiquadSetup = BiquadState*;
 inline BiquadSetup createBiquad(const double* coefficients, std::size_t count) {

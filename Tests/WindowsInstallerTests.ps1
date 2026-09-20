@@ -3,7 +3,7 @@ param([string]$ModulePath = (Join-Path $PSScriptRoot '..\Scripts\WindowsInstall.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module $ModulePath -Force
-$root = 'HKCU:\Software\MacToolsInstallerTest-' + [guid]::NewGuid().ToString('N')
+$root = 'HKCU:\Software\SoundControlInstallerTest-' + [guid]::NewGuid().ToString('N')
 try {
     Set-RegistryValue $root 'Keep' 'String' 'original'
     Set-RegistryValue $root 'Modes' 'MultiString' ([string[]]@('default','communications'))

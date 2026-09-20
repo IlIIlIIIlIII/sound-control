@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace macsound {
+namespace soundcontrol {
 
 enum class EchoProfile {
     adaptive,
@@ -291,4 +291,4 @@ private:
     std::atomic<std::uint64_t> linearOnlyBlocks_{0};
 };
 
-}  // namespace macsound
+}  // namespace soundcontrol

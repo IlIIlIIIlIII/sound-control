@@ -7,30 +7,14 @@
 
 #include <vector>
 
-static NSString *const MSReloadNotification = @"io.griplabs.macsound.reload";
-static NSString *const MSStopNotification = @"io.griplabs.macsound.stop";
+static NSString *const MSReloadNotification = @"io.griplabs.soundcontrol.reload";
+static NSString *const MSStopNotification = @"io.griplabs.soundcontrol.stop";
 static NSString *const MTDisplayReinitializeNotification =
-    @"io.griplabs.macsound.display.reinitialize";
-static NSString *const MTDisplaySwapNotification = @"io.griplabs.macsound.display.swap";
+    @"io.griplabs.soundcontrol.display.reinitialize";
+static NSString *const MTDisplaySwapNotification = @"io.griplabs.soundcontrol.display.swap";
 
 static NSString *MSBaseDirectory(void) {
-    return [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/MacTools"];
-}
-
-static void MSMigrateLegacyDirectory(void) {
-    NSFileManager *manager = [NSFileManager defaultManager];
-    NSString *legacy = [NSHomeDirectory()
-        stringByAppendingPathComponent:@"Library/Application Support/MacSound"];
-    if (![manager fileExistsAtPath:MSBaseDirectory()] && [manager fileExistsAtPath:legacy]) {
-        [manager createDirectoryAtPath:[MSBaseDirectory() stringByDeletingLastPathComponent]
-           withIntermediateDirectories:YES attributes:nil error:nil];
-        [manager copyItemAtPath:legacy toPath:MSBaseDirectory() error:nil];
-        for (NSString *name in @[@"status.json", @"mic-status.json",
-                                 @"display-status.json", @"display-recovery.json"]) {
-            [manager removeItemAtPath:[MSBaseDirectory() stringByAppendingPathComponent:name]
-                                error:nil];
-        }
-    }
+    return [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/SoundControl"];
 }
 
 static NSString *MSFiltersDirectory(void) {
@@ -183,7 +167,7 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
         NSString *uid = MSStringProperty(deviceID, kAudioDevicePropertyDeviceUID);
         NSString *name = MSStringProperty(deviceID, kAudioObjectPropertyName);
         if (uid.length == 0 || name.length == 0) continue;
-        if ([uid isEqualToString:@"io.griplabs.macsound.virtual"] ||
+        if ([uid isEqualToString:@"io.griplabs.soundcontrol.virtual"] ||
             [uid isEqualToString:@"EQMOutputCapture"] ||
             [name rangeOfString:@"eqMac" options:NSCaseInsensitiveSearch].location != NSNotFound) {
             continue;
@@ -239,7 +223,6 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
-    MSMigrateLegacyDirectory();
     NSError *directoryError = nil;
     MSEnsureDirectories(&directoryError);
     _config = MSLoadConfig();
@@ -249,7 +232,7 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
                                                     NSWindowStyleMaskClosable
                                             backing:NSBackingStoreBuffered
                                               defer:NO];
-    _window.title = @"MacTools";
+    _window.title = @"SoundControl";
     _window.delegate = self;
     [_window standardWindowButton:NSWindowCloseButton].enabled = YES;
     [_window center];
@@ -415,7 +398,7 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
 
 - (void)showError:(NSString *)message {
     NSAlert *alert = [NSAlert new];
-    alert.messageText = @"MacTools";
+    alert.messageText = @"SoundControl";
     alert.informativeText = message;
     [alert beginSheetModalForWindow:_window completionHandler:nil];
 }
@@ -444,7 +427,7 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
     [self saveAndNotify];
 }
 
-- (void)importSource:(NSURL *)source channel:(macsound::Channel)channel {
+- (void)importSource:(NSURL *)source channel:(soundcontrol::Channel)channel {
     if ([source.pathExtension caseInsensitiveCompare:@"txt"] != NSOrderedSame) {
         [self showError:@".txt 형식의 REW Configurable_PEQ 파일만 불러올 수 있습니다."];
         return;
@@ -457,7 +440,7 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
         [self showError:@"먼저 사용할 출력 장치를 선택하세요."];
         return;
     }
-    const auto validation = macsound::parseREWConfigurablePEQFile(
+    const auto validation = soundcontrol::parseREWConfigurablePEQFile(
         std::filesystem::path(source.fileSystemRepresentation), channel);
     if (!validation) {
         [self showError:[NSString stringWithUTF8String:validation.error.c_str()]];
@@ -476,9 +459,9 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
         [self showError:error.localizedDescription];
         return;
     }
-    NSString *destinationName = channel == macsound::Channel::left ? @"left.txt" : @"right.txt";
+    NSString *destinationName = channel == soundcontrol::Channel::left ? @"left.txt" : @"right.txt";
     NSString *destination = [MSFiltersDirectory() stringByAppendingPathComponent:destinationName];
-    const auto parsed = macsound::importREWConfigurablePEQFile(
+    const auto parsed = soundcontrol::importREWConfigurablePEQFile(
         std::filesystem::path(source.fileSystemRepresentation),
         std::filesystem::path(destination.fileSystemRepresentation),
         channel);
@@ -487,7 +470,7 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
         return;
     }
 
-    NSString *prefix = channel == macsound::Channel::left ? @"left" : @"right";
+    NSString *prefix = channel == soundcontrol::Channel::left ? @"left" : @"right";
     _config[[prefix stringByAppendingString:@"SourceName"]] = source.lastPathComponent;
     _config[[prefix stringByAppendingString:@"BandCount"]] = @(parsed.filters.size());
     _config[[prefix stringByAppendingString:@"ImportedAt"]] =
@@ -495,14 +478,14 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
     [self saveAndNotify];
 }
 
-- (void)importChannel:(macsound::Channel)channel {
+- (void)importChannel:(soundcontrol::Channel)channel {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseDirectories = NO;
     panel.canChooseFiles = YES;
     panel.allowsMultipleSelection = NO;
     UTType *textFileType = [UTType typeWithFilenameExtension:@"txt"];
     panel.allowedContentTypes = textFileType ? @[textFileType] : @[UTTypePlainText];
-    panel.message = channel == macsound::Channel::left
+    panel.message = channel == soundcontrol::Channel::left
         ? @"왼쪽 채널 REW Configurable_PEQ 파일을 선택하세요."
         : @"오른쪽 채널 REW Configurable_PEQ 파일을 선택하세요.";
 
@@ -515,12 +498,12 @@ static NSArray<MSDevice *> *MSPhysicalOutputDevices(void) {
 
 - (void)importLeft:(id)sender {
     (void)sender;
-    [self importChannel:macsound::Channel::left];
+    [self importChannel:soundcontrol::Channel::left];
 }
 
 - (void)importRight:(id)sender {
     (void)sender;
-    [self importChannel:macsound::Channel::right];
+    [self importChannel:soundcontrol::Channel::right];
 }
 
 - (void)enabledChanged:(id)sender {

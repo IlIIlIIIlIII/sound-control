@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace macsound {
+namespace soundcontrol {
 
 struct BiquadCoefficients {
     double b0 = 1.0;
@@ -55,4 +55,4 @@ private:
     bool configured_ = false;
 };
 
-}  // namespace macsound
+}  // namespace soundcontrol

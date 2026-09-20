@@ -5,13 +5,13 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>ko</string>
     <key>CFBundleExecutable</key>
-    <string>MacToolsMic</string>
+    <string>SoundControlMic</string>
     <key>CFBundleIdentifier</key>
-    <string>io.griplabs.macsound.mic.driver</string>
+    <string>io.griplabs.soundcontrol.mic.driver</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>MacTools Mic</string>
+    <string>SoundControl Mic</string>
     <key>CFBundlePackageType</key>
     <string>BNDL</string>
     <key>CFBundleShortVersionString</key>
@@ -21,7 +21,7 @@
     <key>CFPlugInFactories</key>
     <dict>
         <key>83A4E8CB-C37C-460A-8C38-3AC07D5C79A0</key>
-        <string>MacToolsMic_Create</string>
+        <string>SoundControlMic_Create</string>
     </dict>
     <key>CFPlugInTypes</key>
     <dict>

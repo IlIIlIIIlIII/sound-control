@@ -6,7 +6,7 @@
 #include <new>
 #include <atomic>
 
-namespace macsound::win {
+namespace soundcontrol::win {
 namespace {
 std::atomic<long> objects{0}, serverLocks{0};
 constexpr GUID floatFormat{3,0,0x10,{0x80,0,0,0xaa,0,0x38,0x9b,0x71}};
@@ -105,8 +105,8 @@ APO_REG_PROPERTIES properties(bool capture) {
     p.clsid=capture?aecClass:eqClass;
     p.Flags=static_cast<APO_FLAG>((capture?0:APO_FLAG_INPLACE)|APO_FLAG_FRAMESPERSECOND_MUST_MATCH|
         APO_FLAG_BITSPERSAMPLE_MUST_MATCH|(capture?0:APO_FLAG_SAMPLESPERFRAME_MUST_MATCH));
-    wcscpy_s(p.szFriendlyName,capture?L"MacTools microphone echo cancellation":L"MacTools stereo EQ");
-    wcscpy_s(p.szCopyrightInfo,L"MacTools");
+    wcscpy_s(p.szFriendlyName,capture?L"SoundControl microphone echo cancellation":L"SoundControl stereo EQ");
+    wcscpy_s(p.szCopyrightInfo,L"SoundControl");
     p.u32MajorVersion=1;
     p.u32MinInputConnections=p.u32MaxInputConnections=p.u32MinOutputConnections=p.u32MaxOutputConnections=1;
     p.u32MaxInstances=UINT_MAX;
@@ -382,7 +382,7 @@ private:
 }
 }
 extern "C" HRESULT __stdcall DllGetClassObject(REFCLSID clsid,REFIID iid,void** out) {
-    using namespace macsound::win;
+    using namespace soundcontrol::win;
     if(!out)return E_POINTER;*out=nullptr;
     if(clsid!=eqClass&&clsid!=aecClass)return CLASS_E_CLASSNOTAVAILABLE;
     auto* factory=new(std::nothrow) Factory(clsid==aecClass);
@@ -390,5 +390,5 @@ extern "C" HRESULT __stdcall DllGetClassObject(REFCLSID clsid,REFIID iid,void** 
     const auto hr=factory->QueryInterface(iid,out);factory->Release();return hr;
 }
 extern "C" HRESULT __stdcall DllCanUnloadNow() {
-    return macsound::win::objects.load()==0&&macsound::win::serverLocks.load()==0?S_OK:S_FALSE;
+    return soundcontrol::win::objects.load()==0&&soundcontrol::win::serverLocks.load()==0?S_OK:S_FALSE;
 }

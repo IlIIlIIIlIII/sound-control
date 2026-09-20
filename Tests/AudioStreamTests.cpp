@@ -5,7 +5,7 @@
 #include <memory>
 #include <thread>
 #include <vector>
-using namespace macsound;
+using namespace soundcontrol;
 namespace {
 int failures=0;
 void expect(bool value,const char* message){if(!value){std::cerr<<"FAIL: "<<message<<'\n';++failures;}}
