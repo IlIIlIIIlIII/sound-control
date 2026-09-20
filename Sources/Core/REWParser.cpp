@@ -6,9 +6,20 @@
 #include <fstream>
 #include <sstream>
 #include <system_error>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace macsound {
 namespace {
+
+std::string pathText(const std::filesystem::path& path) {
+    const auto utf8 = path.u8string();
+    return {reinterpret_cast<const char*>(utf8.data()), utf8.size()};
+}
 
 std::string trim(std::string_view value) {
     const auto first = std::find_if_not(value.begin(), value.end(), [](unsigned char c) {
@@ -136,7 +147,7 @@ ParseResult parseREWConfigurablePEQFile(const std::filesystem::path& path, Chann
     std::ifstream file(path, std::ios::binary);
     if (!file) {
         ParseResult result;
-        result.error = "Unable to open " + path.string();
+        result.error = "Unable to open " + pathText(path);
         return result;
     }
     std::ostringstream contents;
@@ -150,7 +161,7 @@ ParseResult importREWConfigurablePEQFile(const std::filesystem::path& source,
     std::ifstream file(source, std::ios::binary);
     if (!file) {
         ParseResult result;
-        result.error = "Unable to open " + source.string();
+        result.error = "Unable to open " + pathText(source);
         return result;
     }
     std::ostringstream contents;
@@ -160,12 +171,14 @@ ParseResult importREWConfigurablePEQFile(const std::filesystem::path& source,
     if (!parsed) return parsed;
 
     std::error_code filesystemError;
-    std::filesystem::create_directories(destination.parent_path(), filesystemError);
+    if (!destination.parent_path().empty())
+        std::filesystem::create_directories(destination.parent_path(), filesystemError);
     if (filesystemError) {
         parsed.error = "Unable to create filter directory: " + filesystemError.message();
         return parsed;
     }
-    const auto temporary = destination.string() + ".importing";
+    auto temporary = destination;
+    temporary += ".importing";
     {
         std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
         if (!output || !(output << text) || !output.flush()) {
@@ -174,7 +187,13 @@ ParseResult importREWConfigurablePEQFile(const std::filesystem::path& source,
             return parsed;
         }
     }
+#ifdef _WIN32
+    if (!MoveFileExW(temporary.c_str(), destination.c_str(),
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        filesystemError = std::error_code(GetLastError(), std::system_category());
+#else
     std::filesystem::rename(temporary, destination, filesystemError);
+#endif
     if (filesystemError) {
         parsed.error = "Unable to replace imported filter: " + filesystemError.message();
         std::filesystem::remove(temporary, filesystemError);

@@ -1,14 +1,78 @@
 cmake_minimum_required(VERSION 3.26)
-project(MacTools VERSION 0.6.5 LANGUAGES C CXX OBJCXX)
+project(MacTools VERSION 0.6.5 LANGUAGES C CXX)
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET "26.0")
-set(CMAKE_OSX_ARCHITECTURES "arm64")
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
+if(APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "26.0")
+    set(CMAKE_OSX_ARCHITECTURES "arm64")
+endif()
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
+endif()
+
+add_library(MacToolsCore STATIC
+    Sources/Core/AudioStream.cpp
+    Sources/Core/AEC.cpp
+    Sources/Core/MicHealth.cpp
+    Sources/Core/REWParser.cpp
+    Sources/Core/DSP.cpp
+    Sources/Display/DisplayTools.cpp
+)
+target_include_directories(MacToolsCore PUBLIC Sources/Core Sources/Display)
+if(APPLE)
+    find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
+    target_link_libraries(MacToolsCore PUBLIC "${ACCELERATE_FRAMEWORK}")
+endif()
+if(MSVC)
+    target_compile_options(MacToolsCore PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(MacToolsCore PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_executable(MacToolsTests Tests/CoreTests.cpp)
+if(APPLE)
+    target_sources(MacToolsTests PRIVATE Sources/Mic/MicShared.c)
+endif()
+target_include_directories(MacToolsTests PRIVATE Sources/Mic Sources/Display)
+target_link_libraries(MacToolsTests PRIVATE MacToolsCore)
+
+add_executable(MacToolsValidate Tools/Validate.cpp)
+target_link_libraries(MacToolsValidate PRIVATE MacToolsCore)
+
+add_executable(MacToolsMicHealthTests Tests/MicHealthTests.cpp)
+target_link_libraries(MacToolsMicHealthTests PRIVATE MacToolsCore)
+
+add_executable(MacToolsBenchmark Tools/Benchmark.cpp)
+target_link_libraries(MacToolsBenchmark PRIVATE MacToolsCore)
+
+add_executable(MacToolsAECBenchmark Tools/AECBenchmark.cpp)
+target_link_libraries(MacToolsAECBenchmark PRIVATE MacToolsCore)
+
+find_package(Threads REQUIRED)
+add_executable(MacToolsStreamTests Tests/AudioStreamTests.cpp)
+target_link_libraries(MacToolsStreamTests PRIVATE MacToolsCore Threads::Threads)
+
+enable_testing()
+add_test(NAME MacToolsStreamTests COMMAND MacToolsStreamTests)
+add_test(NAME MacToolsCoreTests COMMAND MacToolsTests)
+add_test(NAME MacToolsMicHealthTests COMMAND MacToolsMicHealthTests)
+
+if(WIN32)
+    add_subdirectory(Sources/Windows)
+endif()
+
+if(NOT APPLE)
+    return()
 endif()
 
 find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
@@ -36,37 +100,10 @@ if(NOT EXISTS "${APPLE_NULL_AUDIO_SOURCE_DIR}/NullAudio.c")
          DESTINATION "${APPLE_NULL_AUDIO_SOURCE_DIR}")
 endif()
 
-add_library(MacToolsCore STATIC
-    Sources/Core/AEC.cpp
-    Sources/Core/MicHealth.cpp
-    Sources/Core/REWParser.cpp
-    Sources/Core/DSP.cpp
-    Sources/Display/DisplayTools.cpp
-)
-target_include_directories(MacToolsCore PUBLIC Sources/Core Sources/Display)
-target_link_libraries(MacToolsCore PUBLIC "${ACCELERATE_FRAMEWORK}")
-target_compile_options(MacToolsCore PRIVATE -Wall -Wextra -Wpedantic)
-
-add_executable(MacToolsTests Tests/CoreTests.cpp Sources/Mic/MicShared.c)
-target_include_directories(MacToolsTests PRIVATE Sources/Mic Sources/Display)
-target_link_libraries(MacToolsTests PRIVATE MacToolsCore)
-
-add_executable(MacToolsValidate Tools/Validate.cpp)
-target_link_libraries(MacToolsValidate PRIVATE MacToolsCore)
-
-add_executable(MacToolsMicHealthTests Tests/MicHealthTests.cpp)
-target_link_libraries(MacToolsMicHealthTests PRIVATE MacToolsCore)
-
 add_executable(MacToolsMicHealthUITests Tests/MicHealthUITests.mm Sources/Mic/MicHealthUI.mm)
 target_include_directories(MacToolsMicHealthUITests PRIVATE Sources/Mic)
 target_compile_options(MacToolsMicHealthUITests PRIVATE -fobjc-arc -Wall -Wextra)
 target_link_libraries(MacToolsMicHealthUITests PRIVATE "${FOUNDATION_FRAMEWORK}")
-
-add_executable(MacToolsBenchmark Tools/Benchmark.cpp)
-target_link_libraries(MacToolsBenchmark PRIVATE MacToolsCore)
-
-add_executable(MacToolsAECBenchmark Tools/AECBenchmark.cpp)
-target_link_libraries(MacToolsAECBenchmark PRIVATE MacToolsCore)
 
 add_executable(MacToolsAudioProbe Tools/AudioProbe.mm)
 target_compile_options(MacToolsAudioProbe PRIVATE -fobjc-arc -Wall -Wextra)
@@ -173,7 +210,4 @@ add_custom_target(MacToolsPackage ALL
     DEPENDS MacTools MacToolsEngine MacToolsMic
 )
 
-enable_testing()
-add_test(NAME MacToolsCoreTests COMMAND MacToolsTests)
-add_test(NAME MacToolsMicHealthTests COMMAND MacToolsMicHealthTests)
 add_test(NAME MacToolsMicHealthUITests COMMAND MacToolsMicHealthUITests)

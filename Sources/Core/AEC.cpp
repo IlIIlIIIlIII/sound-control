@@ -233,7 +233,7 @@ bool StereoReferenceTimeline::render(std::uint64_t firstHostTime,
 }
 
 EchoCanceller::EchoCanceller()
-    : fftSetup_(vDSP_create_fftsetup(9, kFFTRadix2)),
+    : fftSetup_(signal::createFFT(9, signal::radix2)),
       fftInput_(fftSize, 0.0f), workReal_(fftSize, 0.0f),
       workImaginary_(fftSize, 0.0f), inverseReal_(fftSize, 0.0f),
       inverseImaginary_(fftSize, 0.0f), inverseTime_(fftSize, 0.0f),
@@ -294,7 +294,7 @@ EchoCanceller::EchoCanceller()
 }
 
 EchoCanceller::~EchoCanceller() {
-    if (fftSetup_) vDSP_destroy_fftsetup(fftSetup_);
+    if (fftSetup_) signal::destroyFFT(fftSetup_);
 }
 
 void EchoCanceller::reset() {
@@ -382,17 +382,17 @@ void EchoCanceller::reset() {
 void EchoCanceller::forward(const float* time, float* real, float* imaginary) {
     std::memcpy(real, time, fftSize * sizeof(float));
     std::fill_n(imaginary, fftSize, 0.0f);
-    DSPSplitComplex split{real, imaginary};
-    vDSP_fft_zip(fftSetup_, &split, 1, 9, FFT_FORWARD);
+    signal::SplitComplex split{real, imaginary};
+    signal::fft(fftSetup_, &split, 1, 9, signal::forward);
 }
 
 void EchoCanceller::inverse(const float* real, const float* imaginary, float* time) {
     std::memcpy(inverseReal_.data(), real, fftSize * sizeof(float));
     std::memcpy(inverseImaginary_.data(), imaginary, fftSize * sizeof(float));
-    DSPSplitComplex split{inverseReal_.data(), inverseImaginary_.data()};
-    vDSP_fft_zip(fftSetup_, &split, 1, 9, FFT_INVERSE);
+    signal::SplitComplex split{inverseReal_.data(), inverseImaginary_.data()};
+    signal::fft(fftSetup_, &split, 1, 9, signal::inverse);
     const float scale = 1.0f / static_cast<float>(fftSize);
-    vDSP_vsmul(inverseReal_.data(), 1, &scale, time, 1, fftSize);
+    signal::scale(inverseReal_.data(), 1, &scale, time, 1, fftSize);
 }
 
 float EchoCanceller::minimumGain(bool doubleTalk) const {
@@ -419,23 +419,23 @@ void EchoCanceller::synthesizeLinearEcho(const StereoBank& filterReal,
                                          float* outputReal, float* outputImaginary) {
     std::fill_n(outputReal, fftSize, 0.0f);
     std::fill_n(outputImaginary, fftSize, 0.0f);
-    DSPSplitComplex product{workReal_.data(), workImaginary_.data()};
+    signal::SplitComplex product{workReal_.data(), workImaginary_.data()};
     for (std::size_t channel = 0; channel < 2; ++channel) {
         for (std::size_t partition = 0; partition < partitions; ++partition) {
             const std::size_t history =
                 (historyPosition_ + partitions - partition) % partitions;
             const std::size_t xOffset = spectrumOffset(history);
             const std::size_t hOffset = spectrumOffset(partition);
-            DSPSplitComplex reference{
+            signal::SplitComplex reference{
                 referenceReal_[channel].data() + xOffset,
                 referenceImaginary_[channel].data() + xOffset};
-            DSPSplitComplex filter{
+            signal::SplitComplex filter{
                 const_cast<float*>(filterReal[channel].data() + hOffset),
                 const_cast<float*>(filterImaginary[channel].data() + hOffset)};
-            vDSP_zvmul(&filter, 1, &reference, 1, &product, 1, fftSize, 1);
-            vDSP_vadd(workReal_.data(), 1, outputReal, 1,
+            signal::multiplyComplex(&filter, 1, &reference, 1, &product, 1, fftSize, 1);
+            signal::add(workReal_.data(), 1, outputReal, 1,
                       outputReal, 1, fftSize);
-            vDSP_vadd(workImaginary_.data(), 1, outputImaginary, 1,
+            signal::add(workImaginary_.data(), 1, outputImaginary, 1,
                       outputImaginary, 1, fftSize);
         }
     }
@@ -615,7 +615,7 @@ bool EchoCanceller::nonlinearStreamEnabled(std::size_t stream) const {
 void EchoCanceller::synthesizeNonlinearEcho(float* outputReal, float* outputImaginary) {
     std::fill_n(outputReal, fftSize, 0.0f);
     std::fill_n(outputImaginary, fftSize, 0.0f);
-    DSPSplitComplex product{workReal_.data(), workImaginary_.data()};
+    signal::SplitComplex product{workReal_.data(), workImaginary_.data()};
     for (std::size_t stream = 0; stream < 4; ++stream) {
         if (!nonlinearStreamEnabled(stream)) continue;
         for (std::size_t partition = 0; partition < nonlinearPartitions; ++partition) {
@@ -624,16 +624,16 @@ void EchoCanceller::synthesizeNonlinearEcho(float* outputReal, float* outputImag
                 nonlinearPartitions;
             const std::size_t xOffset = history * fftSize;
             const std::size_t hOffset = partition * fftSize;
-            DSPSplitComplex reference{
+            signal::SplitComplex reference{
                 nonlinearReferenceReal_[stream].data() + xOffset,
                 nonlinearReferenceImaginary_[stream].data() + xOffset};
-            DSPSplitComplex filter{
+            signal::SplitComplex filter{
                 nonlinearFilterReal_[stream].data() + hOffset,
                 nonlinearFilterImaginary_[stream].data() + hOffset};
-            vDSP_zvmul(&filter, 1, &reference, 1, &product, 1, fftSize, 1);
-            vDSP_vadd(workReal_.data(), 1, outputReal, 1,
+            signal::multiplyComplex(&filter, 1, &reference, 1, &product, 1, fftSize, 1);
+            signal::add(workReal_.data(), 1, outputReal, 1,
                       outputReal, 1, fftSize);
-            vDSP_vadd(workImaginary_.data(), 1, outputImaginary, 1,
+            signal::add(workImaginary_.data(), 1, outputImaginary, 1,
                       outputImaginary, 1, fftSize);
         }
     }

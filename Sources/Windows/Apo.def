@@ -1,0 +1,4 @@
+LIBRARY MacToolsAPO
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

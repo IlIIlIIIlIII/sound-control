@@ -1,7 +1,9 @@
 #include "AEC.hpp"
 #include "DSP.hpp"
 #include "DisplayTools.hpp"
+#ifdef __APPLE__
 #include "MicShared.h"
+#endif
 #include "REWParser.hpp"
 
 #include <algorithm>
@@ -14,7 +16,12 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#ifdef _WIN32
+#include <process.h>
+#define getpid _getpid
+#else
 #include <unistd.h>
+#endif
 #include <vector>
 
 using namespace macsound;
@@ -120,6 +127,13 @@ void responseTests() {
 }
 
 void processorTests() {
+    {
+        StereoDSP invalid;
+        std::string error;
+        expect(!invalid.configure({{1000, 1e308, 1}}, {{1000, 0, 1}}, 48000, error),
+               "coefficient overflow must be rejected before creating filter state");
+    }
+
     std::string error;
     StereoDSP dsp;
     const std::vector<PEQFilter> flat{{1000.0, 0.0, 1.0}};
@@ -146,6 +160,7 @@ void processorTests() {
     expect(rightExact, "left filter must not alter right channel");
 }
 
+#ifdef __APPLE__
 void micRingTests() {
     auto shared = std::make_unique<MSMicSharedMemory>();
     std::memset(shared.get(), 0, sizeof(*shared));
@@ -236,6 +251,8 @@ void micRingTests() {
     expect(MSMicRead(shared.get(), output, 1, 0, &primed) == 0 && output[0] == 0.0f,
            "offline mic source always returns silence");
 }
+
+#endif
 
 std::array<std::byte, 128> targetEDID() {
     std::array<std::byte, 128> bytes{};
@@ -1201,7 +1218,9 @@ int main() {
     importTests();
     responseTests();
     processorTests();
+#ifdef __APPLE__
     micRingTests();
+#endif
     displayCoreTests();
     measuredResponseTests();
     aecTests();

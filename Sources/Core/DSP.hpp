@@ -2,7 +2,7 @@
 
 #include "REWParser.hpp"
 
-#include <Accelerate/Accelerate.h>
+#include "SignalOps.hpp"
 
 #include <cstddef>
 #include <string>
@@ -46,8 +46,8 @@ public:
 private:
     void destroy();
 
-    vDSP_biquad_SetupD leftSetup_ = nullptr;
-    vDSP_biquad_SetupD rightSetup_ = nullptr;
+    signal::BiquadSetup leftSetup_ = nullptr;
+    signal::BiquadSetup rightSetup_ = nullptr;
     std::vector<double> leftDelay_;
     std::vector<double> rightDelay_;
     double preampDB_ = 0.0;

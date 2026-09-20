@@ -73,8 +73,8 @@ double automaticPreampDB(const std::vector<PEQFilter>& left,
 StereoDSP::~StereoDSP() { destroy(); }
 
 void StereoDSP::destroy() {
-    if (leftSetup_) vDSP_biquad_DestroySetupD(leftSetup_);
-    if (rightSetup_) vDSP_biquad_DestroySetupD(rightSetup_);
+    if (leftSetup_) signal::destroyBiquad(leftSetup_);
+    if (rightSetup_) signal::destroyBiquad(rightSetup_);
     leftSetup_ = nullptr;
     rightSetup_ = nullptr;
     leftDelay_.clear();
@@ -86,14 +86,14 @@ bool StereoDSP::configure(const std::vector<PEQFilter>& left,
                           const std::vector<PEQFilter>& right,
                           double sampleRate,
                           std::string& error) {
-    if (sampleRate <= 0.0 || left.empty() || right.empty()) {
+    if (!std::isfinite(sampleRate) || sampleRate <= 0.0 || left.empty() || right.empty()) {
         error = "A positive sample rate and both channel filters are required";
         return false;
     }
     const auto validate = [sampleRate](const std::vector<PEQFilter>& filters) {
         return std::all_of(filters.begin(), filters.end(), [sampleRate](const PEQFilter& filter) {
             return filter.frequencyHz > 0.0 && filter.frequencyHz < sampleRate * 0.5 &&
-                   filter.q > 0.0 && std::isfinite(filter.gainDB);
+                   filter.q > 0.0 && std::isfinite(filter.q) && std::isfinite(filter.gainDB);
         });
     };
     if (!validate(left) || !validate(right)) {
@@ -110,16 +110,24 @@ bool StereoDSP::configure(const std::vector<PEQFilter>& left,
 
     const auto leftCoefficients = flatten(effectiveLeft, sampleRate);
     const auto rightCoefficients = flatten(effectiveRight, sampleRate);
+    const auto finiteCoefficients = [](const std::vector<double>& coefficients) {
+        return std::all_of(coefficients.begin(), coefficients.end(),
+                           [](double value) { return std::isfinite(value); });
+    };
+    if (!finiteCoefficients(leftCoefficients) || !finiteCoefficients(rightCoefficients)) {
+        error = "Filter coefficients overflow at the requested gain/Q";
+        return false;
+    }
     auto newLeft = effectiveLeft.empty()
         ? nullptr
-        : vDSP_biquad_CreateSetupD(leftCoefficients.data(), effectiveLeft.size());
+        : signal::createBiquad(leftCoefficients.data(), effectiveLeft.size());
     auto newRight = effectiveRight.empty()
         ? nullptr
-        : vDSP_biquad_CreateSetupD(rightCoefficients.data(), effectiveRight.size());
+        : signal::createBiquad(rightCoefficients.data(), effectiveRight.size());
     if ((!effectiveLeft.empty() && !newLeft) || (!effectiveRight.empty() && !newRight)) {
-        if (newLeft) vDSP_biquad_DestroySetupD(newLeft);
-        if (newRight) vDSP_biquad_DestroySetupD(newRight);
-        error = "vDSP failed to allocate filter state";
+        if (newLeft) signal::destroyBiquad(newLeft);
+        if (newRight) signal::destroyBiquad(newRight);
+        error = "Unable to allocate filter state";
         return false;
     }
 
@@ -142,21 +150,21 @@ void StereoDSP::reset() {
 
 void StereoDSP::processPlanar(double* left, double* right, std::size_t frames) {
     if (!configured() || !left || !right || frames == 0) return;
-    if (leftSetup_) vDSP_biquadD(leftSetup_, leftDelay_.data(), left, 1, left, 1, frames);
-    if (rightSetup_) vDSP_biquadD(rightSetup_, rightDelay_.data(), right, 1, right, 1, frames);
+    if (leftSetup_) signal::biquad(leftSetup_, leftDelay_.data(), left, 1, left, 1, frames);
+    if (rightSetup_) signal::biquad(rightSetup_, rightDelay_.data(), right, 1, right, 1, frames);
     if (linearPreamp_ != 1.0) {
-        vDSP_vsmulD(left, 1, &linearPreamp_, left, 1, frames);
-        vDSP_vsmulD(right, 1, &linearPreamp_, right, 1, frames);
+        signal::scaleDouble(left, 1, &linearPreamp_, left, 1, frames);
+        signal::scaleDouble(right, 1, &linearPreamp_, right, 1, frames);
     }
 }
 
 void StereoDSP::processInterleaved(double* stereo, std::size_t frames) {
     if (!configured() || !stereo || frames == 0) return;
-    if (leftSetup_) vDSP_biquadD(leftSetup_, leftDelay_.data(), stereo, 2, stereo, 2, frames);
-    if (rightSetup_) vDSP_biquadD(rightSetup_, rightDelay_.data(), stereo + 1, 2, stereo + 1, 2, frames);
+    if (leftSetup_) signal::biquad(leftSetup_, leftDelay_.data(), stereo, 2, stereo, 2, frames);
+    if (rightSetup_) signal::biquad(rightSetup_, rightDelay_.data(), stereo + 1, 2, stereo + 1, 2, frames);
     if (linearPreamp_ != 1.0) {
-        vDSP_vsmulD(stereo, 2, &linearPreamp_, stereo, 2, frames);
-        vDSP_vsmulD(stereo + 1, 2, &linearPreamp_, stereo + 1, 2, frames);
+        signal::scaleDouble(stereo, 2, &linearPreamp_, stereo, 2, frames);
+        signal::scaleDouble(stereo + 1, 2, &linearPreamp_, stereo + 1, 2, frames);
     }
 }
 

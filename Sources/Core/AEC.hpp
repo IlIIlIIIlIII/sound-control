@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Accelerate/Accelerate.h>
+#include "SignalOps.hpp"
 
 #include <array>
 #include <atomic>
@@ -172,7 +172,7 @@ private:
     void updateDelayEstimate(std::size_t partition);
     float minimumGain(bool doubleTalk) const;
 
-    FFTSetup fftSetup_ = nullptr;
+    signal::FFTSetup fftSetup_ = nullptr;
     EchoProfile profile_ = EchoProfile::adaptive;
     std::atomic<EchoProfile> requestedProfile_{EchoProfile::adaptive};
 

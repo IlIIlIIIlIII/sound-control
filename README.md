@@ -1,5 +1,11 @@
 # MacTools
 
+Windows 11용 시스템 EQ·실제 마이크 반향 제거 APO와 네이티브 설정 앱도 포함합니다.
+Windows 빌드, 로컬 설치, 서명 요구 사항과 검증 범위는 [Windows 안내](docs/windows.md)를 참고하세요.
+가상 마이크와 디스플레이 기능은 Windows 빌드에 포함하지 않습니다.
+
+아래는 기존 macOS 버전 설명입니다.
+
 MacTools is a small, native macOS utility. It loads separate REW
 `Configurable_PEQ` text files for the left and right channels and routes the
 system mix to a user-selected physical output device. It also removes that
