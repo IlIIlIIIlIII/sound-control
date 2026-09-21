@@ -29,7 +29,13 @@ struct alignas(64) Meter {
     volatile LONG rate = 0, enabled = 0, reference = 0, clipping = 0;
     volatile LONG reductionDB100 = 0, error = 0;
     volatile LONG64 missingFrames = 0, dropped = 0, maxCallbackTicks = 0;
+    // Use the existing alignment padding; preserve the v1 shared-file ABI.
+    volatile LONG64 diagnosticInstance = 0, microphoneTime = 0, referenceTime = 0;
+    volatile LONG inputFrames = 0, inputSignature = 0, linearReductionDB100 = 0;
+    volatile LONG neuralState = 0;
+    volatile LONG64 neuralBlocks = 0;
 };
+static_assert(sizeof(Meter) == 128);
 struct SharedData {
     volatile LONG magic = 0;
     volatile LONG sequence = 0;
@@ -45,7 +51,7 @@ public:
     ~SharedFile();
     bool open(bool create = false);
     bool read(Configuration& out, LONG& revision) const;
-    bool write(const Configuration& config);
+    bool write(const Configuration& config, LONG expectedRevision = 0);
     SharedData* data() const { return data_; }
 private:
     HANDLE file_ = INVALID_HANDLE_VALUE, mapping_ = nullptr;

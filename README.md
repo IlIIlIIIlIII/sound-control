@@ -1,4 +1,9 @@
-# sound-control
+# Personal Tools
+
+Windows 앱은 사운드 제어와 Antigravity CLI 브릿지를 탭으로 제공하는 도구 모음입니다.
+**Antigravity 브릿지** 탭에서 CLI·모델 확인 → 브릿지 시작 후, OpenAI 호환 클라이언트에
+표시된 Base URL과 API 키를 입력하세요. [연동 범위와 사용 안내](docs/antigravity-bridge.md).
+오디오 모듈과 설치 경로는 기존 `SoundControl` 이름을 유지합니다.
 
 Windows 11용 시스템 EQ·실제 마이크 반향 제거 APO와 네이티브 설정 앱도 포함합니다.
 Windows 빌드, 로컬 설치, 서명 요구 사항과 검증 범위는 [Windows 안내](docs/windows.md)를 참고하세요.

@@ -1,0 +1,5 @@
+Notes:left
+Configurable_PEQ
+Number Enabled Control Type Frequency(Hz) Gain(dB) Q
+1 True Auto PK 66.00 -12.00 7.40
+2 True Auto PK 140.00 -12.00 3.21

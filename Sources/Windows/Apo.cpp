@@ -1,5 +1,7 @@
 #include "Shared.hpp"
 #include "AudioStream.hpp"
+#include "ReferenceFeed.hpp"
+#include "NeuralStream.hpp"
 #include <audioenginebaseapo.h>
 #include <audioengineextensionapo.h>
 #include <memory>
@@ -9,6 +11,22 @@
 namespace soundcontrol::win {
 namespace {
 std::atomic<long> objects{0}, serverLocks{0};
+// Bounded diagnostics on the control thread only; never call from APOProcess.
+void lifecycle(bool capture, const char* stage, HRESULT result=S_OK) noexcept {
+    try {
+        const auto path=dataDirectory()/L"apo-lifecycle.log";
+        HANDLE file=CreateFileW(path.c_str(),FILE_APPEND_DATA,FILE_SHARE_READ|FILE_SHARE_WRITE,
+                                nullptr,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
+        if(file==INVALID_HANDLE_VALUE)return;
+        LARGE_INTEGER size{};
+        if(GetFileSizeEx(file,&size)&&size.QuadPart<65536){
+            char line[192]{};const int n=snprintf(line,sizeof(line),"pid=%lu %s %s hr=0x%08lx\r\n",
+                GetCurrentProcessId(),capture?"AEC":"EQ",stage,static_cast<unsigned long>(result));
+            DWORD written=0;if(n>0)WriteFile(file,line,static_cast<DWORD>(n),&written,nullptr);
+        }
+        CloseHandle(file);
+    }catch(...){}
+}
 constexpr GUID floatFormat{3,0,0x10,{0x80,0,0,0xaa,0,0x38,0x9b,0x71}};
 // KSPROPSETID_AudioEffectsDiscovery standard effect GUIDs.
 constexpr GUID echoEffect{0x6f64adbe,0x8211,0x11e2,{0x8c,0x70,0x2c,0x27,0xd7,0xf0,0x01,0xfa}};
@@ -119,13 +137,28 @@ class Apo final : public IAudioProcessingObject, public IAudioProcessingObjectRT
                   public IApoAcousticEchoCancellation, public IApoAuxiliaryInputConfiguration,
                   public IApoAuxiliaryInputRT {
 public:
-    explicit Apo(bool capture): capture_(capture) {
+    explicit Apo(bool capture, IUnknown* outer=nullptr): capture_(capture), inner_(*this), controller_(outer?outer:&inner_) {
+        if(capture){
+            HMODULE module=nullptr;wchar_t path[32768]{};
+            if(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                reinterpret_cast<LPCWSTR>(&lifecycle),&module)&&GetModuleFileNameW(module,path,32768)){
+                neuralDirectory_=std::filesystem::path(path).parent_path()/L"npu";
+                neuralConfigured_=GetFileAttributesW((neuralDirectory_/L"enabled.flag").c_str())!=INVALID_FILE_ATTRIBUTES;
+            }
+        }
         ++objects;
     }
     ~Apo() { if (effectsEvent_) CloseHandle(effectsEvent_); --objects; }
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** out) override {
+        return controller_->QueryInterface(iid,out);
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return controller_->AddRef(); }
+    ULONG STDMETHODCALLTYPE Release() override { return controller_->Release(); }
+    IUnknown* nondelegatingUnknown() { return &inner_; }
+    HRESULT nondelegatingQueryInterface(REFIID iid,void** out) {
         if(!out) return E_POINTER; *out=nullptr;
-        if(iid==__uuidof(IUnknown)||iid==__uuidof(IAudioProcessingObject)) *out=static_cast<IAudioProcessingObject*>(this);
+        if(iid==__uuidof(IUnknown)) { *out=&inner_; inner_.AddRef(); return S_OK; }
+        if(iid==__uuidof(IAudioProcessingObject)) *out=static_cast<IAudioProcessingObject*>(this);
         else if(iid==__uuidof(IAudioProcessingObjectRT)) *out=static_cast<IAudioProcessingObjectRT*>(this);
         else if(iid==__uuidof(IAudioProcessingObjectConfiguration)) *out=static_cast<IAudioProcessingObjectConfiguration*>(this);
         else if(iid==__uuidof(IAudioSystemEffects)||iid==__uuidof(IAudioSystemEffects2)||iid==__uuidof(IAudioSystemEffects3)) *out=static_cast<IAudioSystemEffects3*>(this);
@@ -135,21 +168,42 @@ public:
         else return E_NOINTERFACE;
         AddRef();return S_OK;
     }
-    ULONG STDMETHODCALLTYPE AddRef() override { return ++refs_; }
-    ULONG STDMETHODCALLTYPE Release() override { const auto n=--refs_;if(!n)delete this;return n; }
     HRESULT STDMETHODCALLTYPE Initialize(UINT32 bytes,BYTE* data) override {
+        const HRESULT result = initializeContext(bytes, data);
+        // Initialization is outside the realtime callback. Keep a bounded
+        // diagnostic for real-device failures without recording audio.
+        try {
+            const auto path = dataDirectory() / L"apo-initialize.log";
+            HANDLE file = CreateFileW(path.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ|FILE_SHARE_WRITE,
+                                      nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (file != INVALID_HANDLE_VALUE) {
+                LARGE_INTEGER size{};
+                if (GetFileSizeEx(file, &size) && size.QuadPart < 65536) {
+                    char line[160]{};
+                    const int n = snprintf(line, sizeof(line), "pid=%lu %s Initialize bytes=%u hr=0x%08lx\r\n",
+                        GetCurrentProcessId(), capture_?"AEC":"EQ", bytes, static_cast<unsigned long>(result));
+                    DWORD written=0; if(n>0) WriteFile(file,line,static_cast<DWORD>(n),&written,nullptr);
+                }
+                CloseHandle(file);
+            }
+        } catch (...) {}
+        return result;
+    }
+    HRESULT initializeContext(UINT32 bytes,BYTE* data) {
         if(initialized_)return APOERR_ALREADY_INITIALIZED;
         if(!data)return E_POINTER;
         IMMDeviceCollection* collection=nullptr;
         bool discovery=false;
         if(bytes==sizeof(APOInitSystemEffects3)) {
             const auto* init=reinterpret_cast<const APOInitSystemEffects3*>(data);
-            if(init->APOInit.clsid!=(capture_?aecClass:eqClass))return APOERR_INVALID_APO_CLSID;
+            if(init->APOInit.clsid!=classId())return APOERR_INVALID_APO_CLSID;
             collection=init->pDeviceCollection;discovery=init->InitializeForDiscoveryOnly!=FALSE;
         } else if(bytes==sizeof(APOInitSystemEffects2)) {
-            if(capture_)return E_NOTIMPL; // CAPX AEC requires Windows 11 initialization.
+            // Windows 11 may still use the v2 context for discovery/legacy
+            // endpoints. CAPX is identified by its COM interfaces, not by
+            // requiring the optional v3 service provider here.
             const auto* init=reinterpret_cast<const APOInitSystemEffects2*>(data);
-            if(init->APOInit.clsid!=eqClass)return APOERR_INVALID_APO_CLSID;
+            if(init->APOInit.clsid!=classId())return APOERR_INVALID_APO_CLSID;
             collection=init->pDeviceCollection;discovery=init->InitializeForDiscoveryOnly!=FALSE;
         } else return E_INVALIDARG;
         try {
@@ -163,6 +217,7 @@ public:
             if(capture_) {
                 stream_=std::make_unique<EchoStream>();
                 if (!stream_->valid()) return E_OUTOFMEMORY;
+                if(!discovery)referenceFeed_.open(config_,true);
             }
             LARGE_INTEGER frequency{};
             if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0) return E_FAIL;
@@ -178,13 +233,14 @@ public:
     }
     HRESULT STDMETHODCALLTYPE GetLatency(HNSTIME* value) override {
         if(!value)return E_POINTER;
-        *value=capture_?static_cast<HNSTIME>((EchoStream::latencyFrames*10000000ull+47999)/48000):0;
+        *value=capture_?static_cast<HNSTIME>((latencyFrames()*10000000ull+47999)/48000):0;
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE GetRegistrationProperties(APO_REG_PROPERTIES** out) override {
         if(!out)return E_POINTER;
         *out=static_cast<APO_REG_PROPERTIES*>(CoTaskMemAlloc(sizeof(APO_REG_PROPERTIES)));
-        if(!*out)return E_OUTOFMEMORY;**out=properties(capture_);return S_OK;
+        if(!*out)return E_OUTOFMEMORY;**out=properties(capture_);
+        return S_OK;
     }
     HRESULT negotiate(IAudioMediaType* opposite,IAudioMediaType* requested,IAudioMediaType** out,bool auxiliary,bool output) {
         if(!out||!requested)return E_POINTER;*out=nullptr;
@@ -230,10 +286,20 @@ public:
         if(in[0]->u32MaxFrameCount==0||out[0]->u32MaxFrameCount<in[0]->u32MaxFrameCount)return APOERR_INVALID_OUTPUT_MAXFRAMECOUNT;
         inputChannels_=a.dwSamplesPerFrame;outputChannels_=b.dwSamplesPerFrame;maxFrames_=in[0]->u32MaxFrameCount;rate_=static_cast<unsigned>(a.fFramesPerSecond);
         eq_.reset();if(stream_)stream_->reset();
+        if(capture_&&neuralConfigured_){
+            try{neural_=std::make_unique<NeuralStream>(neuralDirectory_);}
+            catch(...){return E_OUTOFMEMORY;}
+        }
+        // A discovery-created instance can subsequently be locked for a real
+        // stream. Open the compatibility feed here as well, off the RT thread.
+        if(capture_&&!auxiliary_) {
+            const bool opened=referenceFeed_.open(config_,true);
+            lifecycle(true,"Legacy reference at LockForProcess",opened?S_OK:HRESULT_FROM_WIN32(GetLastError()));
+        }
         auto& m=meter();InterlockedExchange(&m.rate,rate_);InterlockedExchange(&m.error,capture_ && auxiliary_ && !referenceMatches_ ? ERROR_NOT_FOUND : 0);
         locked_=true;return S_OK;
     }
-    HRESULT STDMETHODCALLTYPE UnlockForProcess() override {if(!locked_)return APOERR_ALREADY_UNLOCKED;locked_=false;return S_OK;}
+    HRESULT STDMETHODCALLTYPE UnlockForProcess() override {if(!locked_)return APOERR_ALREADY_UNLOCKED;locked_=false;neural_.reset();return S_OK;}
     UINT32 STDMETHODCALLTYPE CalcInputFrames(UINT32 n) override {return n;}
     UINT32 STDMETHODCALLTYPE CalcOutputFrames(UINT32 n) override {return n;}
     void STDMETHODCALLTYPE APOProcess(UINT32 ni,APO_CONNECTION_PROPERTY** in,UINT32 no,APO_CONNECTION_PROPERTY** out) override {
@@ -241,7 +307,15 @@ public:
         auto* dest=out[0];
         if(!locked_||ni!=1||!in||!in[0]) {dest->u32ValidFrameCount=0;dest->u32BufferFlags=BUFFER_INVALID;return;}
         const auto sourceCopy=*in[0];
-        const auto rawTime=timestamp(in[0]);
+        auto rawTime=timestamp(in[0]);
+        // Legacy LFX hosts can supply v1 connection properties without QPC.
+        // Estimate the first frame from this callback's end time; the adaptive
+        // delay estimator handles the remaining driver buffering difference.
+        if(capture_&&!rawTime){
+            LARGE_INTEGER now{};QueryPerformanceCounter(&now);
+            const auto span=static_cast<std::uint64_t>(in[0]->u32ValidFrameCount)*qpcFrequency_/48000;
+            rawTime=static_cast<std::uint64_t>(now.QuadPart)>span?now.QuadPart-span:0;
+        }
         const auto* source=&sourceCopy;const auto frames=source->u32ValidFrameCount;
         dest->u32ValidFrameCount=0;dest->u32BufferFlags=BUFFER_INVALID;
         if(frames>maxFrames_||!dest->pBuffer||source->u32BufferFlags==BUFFER_INVALID)return;
@@ -258,24 +332,57 @@ public:
         const bool enabled=osEnabled_.load(std::memory_order_relaxed)&&(capture_?config_.aecEnabled:config_.eqEnabled);
         const auto* src=reinterpret_cast<const float*>(source->pBuffer);
         auto* dst=reinterpret_cast<float*>(dest->pBuffer);
-        if(capture_)stream_->microphone(src,dst,frames,inputChannels_,outputChannels_,normalizedTime(rawTime),silent,enabled);
+        if(capture_){
+            const auto time=normalizedTime(rawTime);
+            if(!auxiliary_){
+                referenceFeed_.observe(time,rawTime);
+                ReferenceFeed::Packet packet;
+                for(unsigned i=0;i<ReferenceFeed::capacity&&referenceFeed_.next(packet);++i){
+                    const bool accepted=packet.revision==revision_&&packet.time<=time+1000000&&time<=packet.time+2000000;
+                    referenceFeed_.observedReference(packet.time,accepted);
+                    if(accepted)
+                    {
+                        latestReferenceTime_=packet.time;
+                        if(neural_)neural_->reference(packet.samples,packet.frames,2,packet.time,false);
+                        else stream_->reference(packet.samples,packet.frames,2,packet.time,false);
+                    }
+                }
+            }
+            if(neural_)neural_->microphone(src,dst,frames,inputChannels_,outputChannels_,time,silent,enabled);
+            else stream_->microphone(src,dst,frames,inputChannels_,outputChannels_,time,silent,enabled);
+        }
         else eq_.process(src,dst,frames,silent,enabled);
         dest->u32ValidFrameCount=frames;dest->u32BufferFlags=BUFFER_VALID;
         if(dest->u32Signature==APO_CONNECTION_PROPERTY_V2_SIGNATURE) {
             auto* v2=reinterpret_cast<APO_CONNECTION_PROPERTY_V2*>(dest);
             const auto t=rawTime;
-            const auto latency=capture_?(EchoStream::latencyFrames*qpcFrequency_+24000)/48000:0;
+            const auto latency=capture_?(latencyFrames()*qpcFrequency_+24000)/48000:0;
             v2->u64QPCTime=t>latency?t-latency:0;
         }
         auto& m=meter();InterlockedIncrement64(&m.callbacks);InterlockedAdd64(&m.frames,frames);
         InterlockedExchange(&m.enabled,enabled?1:0);
         if(capture_) {
             const auto metric=stream_->metrics();
+            InterlockedExchange64(&m.microphoneTime,normalizedTime(rawTime));
+            InterlockedExchange64(&m.referenceTime,latestReferenceTime_);
+            InterlockedExchange(&m.inputFrames,frames);
+            InterlockedExchange(&m.inputSignature,source->u32Signature);
+            InterlockedExchange(&m.linearReductionDB100,static_cast<LONG>(metric.linearReductionDB*100));
             InterlockedExchange(&m.reference,metric.active?1:0);
             InterlockedExchange(&m.clipping,metric.inputClipping?1:0);
             InterlockedExchange(&m.reductionDB100,static_cast<LONG>(metric.reductionDB*100));
             InterlockedExchange64(&m.missingFrames,metric.referenceUnderruns);
             InterlockedExchange64(&m.dropped,stream_->dropped());
+            if(neural_){
+                InterlockedExchange(&m.reference,neural_->state()==2&&latestReferenceTime_+2000000>=normalizedTime(rawTime)?1:0);
+                InterlockedExchange(&m.error,neural_->state()<0?ERROR_NOT_READY:0);
+                InterlockedExchange64(&m.missingFrames,neural_->misses());
+                InterlockedExchange(&m.linearReductionDB100,0);
+                InterlockedExchange(&m.neuralState,neural_->state());
+                InterlockedExchange64(&m.neuralBlocks,neural_->completed());
+            }else{InterlockedExchange(&m.neuralState,0);InterlockedExchange64(&m.neuralBlocks,0);}
+            InterlockedExchange64(&m.diagnosticInstance,
+                (static_cast<LONG64>(GetCurrentProcessId())<<32) | (reinterpret_cast<std::uintptr_t>(this)&0xffffffffu));
         }
         QueryPerformanceCounter(&end);InterlockedExchange64(&m.lastQpc,end.QuadPart);
         const auto elapsed=end.QuadPart-start.QuadPart;
@@ -306,7 +413,8 @@ public:
     }
     void STDMETHODCALLTYPE AcceptInput(DWORD id,const APO_CONNECTION_PROPERTY* p) override {
         if(!locked_||!auxiliary_||!referenceMatches_||id!=auxId_||!p||p->u32ValidFrameCount>auxMaxFrames_||p->u32BufferFlags==BUFFER_INVALID)return;
-        stream_->reference(reinterpret_cast<const float*>(p->pBuffer),p->u32ValidFrameCount,auxChannels_,normalizedTime(timestamp(p)),p->u32BufferFlags==BUFFER_SILENT);
+        if(neural_)neural_->reference(reinterpret_cast<const float*>(p->pBuffer),p->u32ValidFrameCount,auxChannels_,normalizedTime(timestamp(p)),p->u32BufferFlags==BUFFER_SILENT);
+        else stream_->reference(reinterpret_cast<const float*>(p->pBuffer),p->u32ValidFrameCount,auxChannels_,normalizedTime(timestamp(p)),p->u32BufferFlags==BUFFER_SILENT);
     }
     HRESULT STDMETHODCALLTYPE GetEffectsList(GUID** effects,UINT* count,HANDLE event) override {
         const auto hr = rememberEvent(event); if (FAILED(hr)) return hr;
@@ -330,7 +438,9 @@ public:
         return S_OK;
     }
 private:
+    unsigned latencyFrames()const{return neuralConfigured_?NeuralStream::latencyFrames:EchoStream::latencyFrames;}
     // Effects discovery/control runs outside the realtime callbacks.
+    const GUID& classId() const {return capture_?aecClass:eqClass;}
     HRESULT rememberEvent(HANDLE event) {
         HANDLE copy = nullptr;
         if (event && !DuplicateHandle(GetCurrentProcess(), event, GetCurrentProcess(),
@@ -351,12 +461,27 @@ private:
     Meter& meter() {return capture_?shared_.data()->capture:shared_.data()->render;}
     std::atomic<ULONG> refs_{1};
     const bool capture_;
+    // audiodg aggregates system effects. The inner unknown owns this object;
+    // all public interfaces delegate COM identity/lifetime to the outer host.
+    class InnerUnknown final : public IUnknown {
+    public:
+        explicit InnerUnknown(Apo& owner):owner_(owner){}
+        HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id,void** out) override { return owner_.nondelegatingQueryInterface(id,out); }
+        ULONG STDMETHODCALLTYPE AddRef() override { return ++owner_.refs_; }
+        ULONG STDMETHODCALLTYPE Release() override { auto n=--owner_.refs_;if(!n)delete &owner_;return n; }
+    private: Apo& owner_;
+    } inner_;
+    IUnknown* controller_;
     bool initialized_=false,locked_=false,auxiliary_=false,discovery_=false,referenceMatches_=false;
     std::atomic<bool> osEnabled_{true};
     unsigned inputChannels_=2,outputChannels_=2,maxFrames_=0,rate_=48000,auxChannels_=2,auxMaxFrames_=0;
     DWORD auxId_=0;
     SharedFile shared_;Configuration config_{};LONG revision_=0;
+    ReferenceFeed referenceFeed_;
+    std::uint64_t latestReferenceTime_=0;
     RealtimeEQ eq_;std::unique_ptr<EchoStream> stream_;
+    bool neuralConfigured_=false;std::filesystem::path neuralDirectory_;
+    std::unique_ptr<NeuralStream> neural_;
     CreateMedia createMedia_=nullptr;
 };
 class Factory final:public IClassFactory {
@@ -371,8 +496,9 @@ public:
     ULONG STDMETHODCALLTYPE AddRef() override{return ++refs_;}
     ULONG STDMETHODCALLTYPE Release() override{const auto n=--refs_;if(!n)delete this;return n;}
     HRESULT STDMETHODCALLTYPE CreateInstance(IUnknown* outer,REFIID id,void** out) override {
-        if(!out)return E_POINTER;*out=nullptr;if(outer)return CLASS_E_NOAGGREGATION;
-        try {auto* apo=new Apo(capture_);const auto hr=apo->QueryInterface(id,out);apo->Release();return hr;}
+        lifecycle(capture_,outer?"CreateInstance aggregated":"CreateInstance");
+        if(!out)return E_POINTER;*out=nullptr;if(outer&&id!=__uuidof(IUnknown))return CLASS_E_NOAGGREGATION;
+        try {auto* apo=new Apo(capture_,outer);auto* inner=apo->nondelegatingUnknown();const auto hr=inner->QueryInterface(id,out);inner->Release();return hr;}
         catch(...){return E_OUTOFMEMORY;}
     }
     HRESULT STDMETHODCALLTYPE LockServer(BOOL lock) override{if(lock)++serverLocks;else --serverLocks;return S_OK;}
@@ -385,9 +511,11 @@ extern "C" HRESULT __stdcall DllGetClassObject(REFCLSID clsid,REFIID iid,void** 
     using namespace soundcontrol::win;
     if(!out)return E_POINTER;*out=nullptr;
     if(clsid!=eqClass&&clsid!=aecClass)return CLASS_E_CLASSNOTAVAILABLE;
+    lifecycle(clsid==aecClass,"DllGetClassObject");
     auto* factory=new(std::nothrow) Factory(clsid==aecClass);
     if(!factory)return E_OUTOFMEMORY;
-    const auto hr=factory->QueryInterface(iid,out);factory->Release();return hr;
+    const auto hr=factory->QueryInterface(iid,out);
+    factory->Release();return hr;
 }
 extern "C" HRESULT __stdcall DllCanUnloadNow() {
     return soundcontrol::win::objects.load()==0&&soundcontrol::win::serverLocks.load()==0?S_OK:S_FALSE;

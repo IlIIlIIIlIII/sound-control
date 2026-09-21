@@ -2,3 +2,6 @@
 /build-sanitize/
 /.DS_Store
 *.xcuserstate
+**/bin/
+**/obj/
+__pycache__/

@@ -1,0 +1,132 @@
+[
+  {
+    "model": "current",
+    "gain": 0,
+    "echo_energy_reduction_db": 20.21348530317567
+  },
+  {
+    "model": "current",
+    "gain": 0.3,
+    "voice_gain_db": -12.969479411421343,
+    "echo_projection_reduction_db": 29.402394577052597,
+    "voice_si_sdr_db": -7.417425320294506
+  },
+  {
+    "model": "current",
+    "gain": 1,
+    "voice_gain_db": -3.9066750466382882,
+    "echo_projection_reduction_db": 18.214174796639252,
+    "voice_si_sdr_db": 1.6548843145145296
+  },
+  {
+    "model": "current",
+    "gain": 3,
+    "voice_gain_db": -0.7515560661305107,
+    "echo_projection_reduction_db": 8.635021106885809,
+    "voice_si_sdr_db": 9.481497956474104
+  },
+  {
+    "model": "dtln128",
+    "gain": 0.3,
+    "voice_gain_db": -9.896085647867714,
+    "echo_projection_reduction_db": 27.48690458701575,
+    "voice_si_sdr_db": -2.6803950864176933
+  },
+  {
+    "model": "dtln128",
+    "gain": 0.0,
+    "echo_energy_reduction_db": 28.039444691811717
+  },
+  {
+    "model": "dtln128",
+    "gain": 1.0,
+    "voice_gain_db": -2.891601239711889,
+    "echo_projection_reduction_db": 18.878256299284086,
+    "voice_si_sdr_db": 5.835853675295912
+  },
+  {
+    "model": "dtln128",
+    "gain": 3.0,
+    "voice_gain_db": -1.766907669765307,
+    "echo_projection_reduction_db": 12.525185401855435,
+    "voice_si_sdr_db": 8.537851637833766
+  },
+  {
+    "model": "dtln256",
+    "gain": 0.3,
+    "voice_gain_db": -8.569049176330063,
+    "echo_projection_reduction_db": 27.33069625783401,
+    "voice_si_sdr_db": -1.4926061664055632
+  },
+  {
+    "model": "dtln256",
+    "gain": 0.0,
+    "echo_energy_reduction_db": 23.462367099672427
+  },
+  {
+    "model": "dtln256",
+    "gain": 1.0,
+    "voice_gain_db": -2.316458585036405,
+    "echo_projection_reduction_db": 19.269027443488117,
+    "voice_si_sdr_db": 7.294637089481518
+  },
+  {
+    "model": "dtln256",
+    "gain": 3.0,
+    "voice_gain_db": -0.5931283101563474,
+    "echo_projection_reduction_db": 11.411241477007438,
+    "voice_si_sdr_db": 13.464868088270574
+  },
+  {
+    "model": "dtln512",
+    "gain": 0.3,
+    "voice_gain_db": -21.563224237577245,
+    "echo_projection_reduction_db": 14.395437812102365,
+    "voice_si_sdr_db": -21.282559063940788
+  },
+  {
+    "model": "dtln512",
+    "gain": 0.0,
+    "echo_energy_reduction_db": 8.950429122963815
+  },
+  {
+    "model": "dtln512",
+    "gain": 1.0,
+    "voice_gain_db": -17.253065816651763,
+    "echo_projection_reduction_db": 15.112459731969242,
+    "voice_si_sdr_db": -6.963353872553957
+  },
+  {
+    "model": "dtln512",
+    "gain": 3.0,
+    "voice_gain_db": -14.503249267574247,
+    "echo_projection_reduction_db": 15.152399787920048,
+    "voice_si_sdr_db": -2.054476651381553
+  },
+  {
+    "model": "localvqe13",
+    "gain": 0.3,
+    "voice_gain_db": -26.249125140091397,
+    "echo_projection_reduction_db": 37.85201238088664,
+    "voice_si_sdr_db": -9.646427439431502
+  },
+  {
+    "model": "localvqe13",
+    "gain": 0.0,
+    "echo_energy_reduction_db": 62.156081140312615
+  },
+  {
+    "model": "localvqe13",
+    "gain": 1.0,
+    "voice_gain_db": -14.14648673441555,
+    "echo_projection_reduction_db": 26.51981348538117,
+    "voice_si_sdr_db": 0.5382823639408589
+  },
+  {
+    "model": "localvqe13",
+    "gain": 3.0,
+    "voice_gain_db": -12.658782328095338,
+    "echo_projection_reduction_db": 23.04234376402334,
+    "voice_si_sdr_db": 1.9277400019002833
+  }
+]

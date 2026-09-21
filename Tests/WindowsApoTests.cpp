@@ -8,6 +8,17 @@ using namespace soundcontrol;
 using namespace soundcontrol::win;
 namespace {
 int failures=0;
+class TestOuter final : public IUnknown {
+public:
+    ULONG refs=1;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id,void** out) override {
+        if(!out)return E_POINTER;*out=nullptr;
+        if(id!=__uuidof(IUnknown))return E_NOINTERFACE;
+        *out=static_cast<IUnknown*>(this);AddRef();return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
+    ULONG STDMETHODCALLTYPE Release() override { return --refs; }
+};
 void expect(bool ok,const char* text){if(!ok){std::cerr<<"FAIL: "<<text<<'\n';++failures;}}
 IAudioMediaType* makeMedia(unsigned channels,unsigned rate=48000) {
     UNCOMPRESSEDAUDIOFORMAT f{floatFormat,channels,4,32,static_cast<float>(rate),channels==1?4u:3u};
@@ -38,7 +49,28 @@ void dllTest() {
             IAudioProcessingObject* instance=nullptr;
             expect(factory->CreateInstance(nullptr,__uuidof(IAudioProcessingObject),reinterpret_cast<void**>(&instance))==S_OK,"DLL APO instance");
             expect(unload()==S_FALSE,"live objects prevent unload");
-            if(instance)instance->Release();factory->Release();
+            if(instance)instance->Release();
+            TestOuter outer;
+            IUnknown* inner=nullptr;
+            expect(factory->CreateInstance(&outer,__uuidof(IAudioProcessingObject),reinterpret_cast<void**>(&inner))==CLASS_E_NOAGGREGATION && !inner,
+                   "aggregation requires nondelegating IUnknown");
+            expect(factory->CreateInstance(&outer,__uuidof(IUnknown),reinterpret_cast<void**>(&inner))==S_OK && inner,
+                   "audiodg aggregated activation succeeds");
+            if(inner) {
+                IAudioProcessingObject* aggregated=nullptr;
+                expect(inner->QueryInterface(__uuidof(IAudioProcessingObject),reinterpret_cast<void**>(&aggregated))==S_OK,
+                       "aggregated APO exposes processing interface");
+                if(aggregated) {
+                    IUnknown* identity=nullptr;
+                    expect(aggregated->QueryInterface(__uuidof(IUnknown),reinterpret_cast<void**>(&identity))==S_OK && identity==static_cast<IUnknown*>(&outer),
+                           "aggregated interfaces preserve controlling COM identity");
+                    if(identity)identity->Release();
+                    aggregated->Release();
+                }
+                expect(outer.refs==1,"aggregated public references balance on outer object");
+                inner->Release();
+            }
+            factory->Release();
         }
         expect(unload()==S_OK,"DLL can unload after COM release");
     }
@@ -128,6 +160,87 @@ void aecTest(SharedFile& state,Configuration cfg) {
     apo->UnlockForProcess();expect(apo->RemoveAuxiliaryInput(0)==S_OK,"auxiliary removed after unlock");
     mono->Release();stereo->Release();apo->Release();
 }
+void referenceFeedTest() {
+    Configuration config;
+    {
+        ReferenceFeed first,second,writer,contender;
+        expect(first.open(config,true)&&second.open(config,false)&&writer.open(config,false),"reference IPC opens across independent participants");
+        expect(writer.acquireWriter(),"reference IPC elects a single writer");
+        expect(contender.open(config,false)&&!contender.acquireWriter(),"another UI session cannot mix a second reference writer");
+        float samples[]{0.25f,-0.5f};ReferenceFeed::Packet packet;
+        writer.publish(samples,1,123456,8,false);
+        expect(first.next(packet)&&packet.time==123456&&packet.revision==8&&packet.frames==1&&packet.samples[0]==0.25f&&packet.samples[1]==-0.5f,"reference timestamp and both channels survive IPC");
+        expect(second.next(packet)&&!first.next(packet),"APO consumers have independent cursors");
+        for(unsigned i=0;i<ReferenceFeed::capacity+5;++i)writer.publish(nullptr,1,200000+i,10,true);
+        unsigned count=0;bool silent=true;
+        while(first.next(packet)){++count;silent=silent&&packet.samples[0]==0&&packet.samples[1]==0;}
+        expect(count==ReferenceFeed::capacity&&silent,"bounded overflow skips overwritten packets and preserves silence");
+        writer.close();
+        expect(contender.acquireWriter(),"reference writer can reconnect without invalidating active APO readers");
+    }
+    ReferenceFeed gone;
+    expect(!gone.open(config,false),"reference mapping disappears after all participants close");
+}
+void referenceAccessTest() {
+    Configuration config;wcscpy_s(config.renderId,L"restricted-reference-test");
+    ReferenceFeed first;expect(first.open(config,true),"create isolated section for limited-rights regression");
+    PSECURITY_DESCRIPTOR fileSecurity=nullptr;PSID owner=nullptr;
+    const auto path=(dataDirectory()/L"state-v1.bin").wstring();
+    expect(GetNamedSecurityInfoW(path.c_str(),SE_FILE_OBJECT,OWNER_SECURITY_INFORMATION,&owner,nullptr,nullptr,nullptr,&fileSecurity)==ERROR_SUCCESS,"read test owner");
+    EXPLICIT_ACCESSW access{};access.grfAccessPermissions=FILE_MAP_READ|FILE_MAP_WRITE;access.grfAccessMode=SET_ACCESS;
+    access.Trustee.TrusteeForm=TRUSTEE_IS_SID;access.Trustee.ptstrName=reinterpret_cast<LPWSTR>(owner);
+    PACL acl=nullptr;expect(SetEntriesInAclW(1,&access,nullptr,&acl)==ERROR_SUCCESS,"build limited section permissions");
+    auto handle=OpenFileMappingW(WRITE_DAC,FALSE,ReferenceFeed::name(config).c_str());
+    expect(handle&&SetSecurityInfo(handle,SE_KERNEL_OBJECT,DACL_SECURITY_INFORMATION,nullptr,nullptr,acl,nullptr)==ERROR_SUCCESS,"restrict only isolated test section");
+    if(handle)CloseHandle(handle);if(acl)LocalFree(acl);if(fileSecurity)LocalFree(fileSecurity);
+    auto excessive=CreateFileMappingW(INVALID_HANDLE_VALUE,nullptr,PAGE_READWRITE,0,sizeof(ReferenceFeed::Data),ReferenceFeed::name(config).c_str());
+    expect(!excessive&&GetLastError()==ERROR_ACCESS_DENIED,"reproduce existing-section CreateFileMapping access denial");
+    if(excessive)CloseHandle(excessive);
+    ReferenceFeed second;expect(second.open(config,true),"subsequent APO opens the same section with only read/write rights");
+}
+void legacyReferenceStreamTest(SharedFile& state,Configuration config) {
+    config.aecEnabled=1;expect(state.write(config),"enable isolated legacy AEC");
+    auto* apo=new Apo(true);APOInitSystemEffects2 init{};
+    init.APOInit.clsid=aecClass;init.InitializeForDiscoveryOnly=TRUE;
+    expect(apo->Initialize(sizeof(init),reinterpret_cast<BYTE*>(&init))==S_OK,"legacy discovery initializes before reference exists");
+    auto* media=makeMedia(2);constexpr unsigned frames=480;
+    std::array<float,frames*2> input{},output{};input.fill(0.1f);
+    APO_CONNECTION_DESCRIPTOR a{APO_CONNECTION_BUFFER_TYPE_EXTERNAL,reinterpret_cast<UINT_PTR>(input.data()),frames,media,APO_CONNECTION_DESCRIPTOR_SIGNATURE};
+    APO_CONNECTION_DESCRIPTOR b{APO_CONNECTION_BUFFER_TYPE_EXTERNAL,reinterpret_cast<UINT_PTR>(output.data()),frames,media,APO_CONNECTION_DESCRIPTOR_SIGNATURE};
+    APO_CONNECTION_DESCRIPTOR* ai[]{&a};APO_CONNECTION_DESCRIPTOR* bo[]{&b};
+    expect(apo->LockForProcess(1,ai,1,bo)==S_OK,"legacy discovery instance can transition to a real stream");
+    {
+        ReferenceFeed writer;expect(writer.open(config,false)&&writer.acquireWriter(),"real stream exposes reference mapping to desktop writer");
+        Configuration saved;LONG revision=0;state.read(saved,revision);LARGE_INTEGER frequency{};QueryPerformanceFrequency(&frequency);
+        for(unsigned n=0;n<100;++n){
+            const auto time=100000000ull+n*100000ull;
+            writer.publish(input.data(),frames,time,revision,false);
+            APO_CONNECTION_PROPERTY_V2 ip{{a.pBuffer,frames,BUFFER_VALID,APO_CONNECTION_PROPERTY_V2_SIGNATURE},time*frequency.QuadPart/10000000ull};
+            APO_CONNECTION_PROPERTY op{b.pBuffer,0,BUFFER_INVALID,APO_CONNECTION_PROPERTY_SIGNATURE};
+            APO_CONNECTION_PROPERTY* ins[]{&ip.property};APO_CONNECTION_PROPERTY* outs[]{&op};apo->APOProcess(1,ins,1,outs);
+            expect(op.u32ValidFrameCount==frames,"legacy reference processing preserves frame count");
+        }
+        expect(readWide(&state.data()->capture.missingFrames)<2048,"legacy APO consumes timestamped IPC reference after startup");
+    }
+    apo->UnlockForProcess();media->Release();apo->Release();
+}
+void legacyContextTest() {
+    APOInitSystemEffects2 context{};
+    context.APOInit.clsid=aecClass;
+    context.InitializeForDiscoveryOnly=TRUE;
+    auto* apo=new Apo(true);
+    expect(apo->Initialize(sizeof(context),reinterpret_cast<BYTE*>(&context))==S_OK,
+           "AEC supports the v2 discovery context used by legacy endpoints on Windows 11");
+    apo->Release();
+    apo=new Apo(true);context.APOInit.clsid=eqClass;
+    expect(apo->Initialize(sizeof(context),reinterpret_cast<BYTE*>(&context))==APOERR_INVALID_APO_CLSID,
+           "v2 AEC initialization rejects another APO class");
+    apo->Release();
+    apo=new Apo(true);context.APOInit.clsid=aecClass;context.InitializeForDiscoveryOnly=FALSE;
+    expect(apo->Initialize(sizeof(context),reinterpret_cast<BYTE*>(&context))==HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+           "v2 streaming still requires the selected endpoint in its device collection");
+    apo->Release();
+}
 }
 int main(){
     CoInitializeEx(nullptr,COINIT_MULTITHREADED);
@@ -137,7 +250,7 @@ int main(){
         Configuration cfg;std::string error;
         expect(prepareConfiguration(cfg,{{66,-12,7.4},{140,-12,3.21}},{{65,-8.4,8},{142,-12,3.36}},error),"prepare provided L/R EQ");
         expect(file.write(cfg),"write shared settings");
-        dllTest();imports();eqTest(file,cfg);aecTest(file,cfg);
+        dllTest();imports();eqTest(file,cfg);aecTest(file,cfg);legacyContextTest();referenceFeedTest();referenceAccessTest();legacyReferenceStreamTest(file,cfg);
     }
     expect(DllCanUnloadNow()==S_OK,"all COM instances released");
     std::error_code ignored;std::filesystem::remove_all(directory,ignored);

@@ -69,9 +69,10 @@ bool SharedFile::read(Configuration& out, LONG& revision) const {
     }
     return false;
 }
-bool SharedFile::write(const Configuration& config) {
+bool SharedFile::write(const Configuration& config, LONG expectedRevision) {
     if (!data_) return false;
     LONG seq = readWord(&data_->sequence);
+    if (expectedRevision && seq != expectedRevision) return false;
     if ((seq & 1) || InterlockedCompareExchange(&data_->sequence, seq + 1, seq) != seq) return false;
     std::array<LONG,sizeof(Configuration)/sizeof(LONG)> snapshot{};
     std::memcpy(snapshot.data(), &config, sizeof(config));

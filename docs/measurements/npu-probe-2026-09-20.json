@@ -1,0 +1,13 @@
+{
+  "openvino": "2026.4.0-22959-99c81491cc3-releases/2026/4",
+  "available_devices": [
+    "CPU",
+    "GPU.0",
+    "GPU.1",
+    "NPU"
+  ],
+  "npu_name": "Intel(R) AI Boost",
+  "execution_devices": "NPU",
+  "synthetic_result_correct": true,
+  "aec_model_tested": false
+}

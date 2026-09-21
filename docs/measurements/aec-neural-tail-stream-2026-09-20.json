@@ -1,0 +1,16 @@
+{
+  "before": {
+    "tail_rms_dbfs": -50.374249891646855,
+    "tail_p95_100ms_dbfs": -45.10829608726756,
+    "tail_worst_100ms_erle_db": 7.0911576025541665,
+    "voice_gain_db": -1.308462142944336,
+    "voice_si_sdr_db": 9.993361473083496
+  },
+  "after": {
+    "tail_rms_dbfs": -54.098646188343345,
+    "tail_p95_100ms_dbfs": -47.99153680567646,
+    "tail_worst_100ms_erle_db": 12.507220233987741,
+    "voice_gain_db": -1.2093733549118042,
+    "voice_si_sdr_db": 10.063375473022461
+  }
+}

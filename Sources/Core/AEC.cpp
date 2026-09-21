@@ -350,6 +350,7 @@ void EchoCanceller::reset() {
     shadowConstraintPosition_ = 0;
     nonlinearConstraintPosition_ = 0;
     processedBlocks_ = 0;
+    weakModelBlocks_ = 0;
     doubleTalkCandidateBlocks_ = 0;
     doubleTalkHangover_ = 0;
     shadowBetterEvaluations_ = 0;
@@ -1233,7 +1234,14 @@ void EchoCanceller::processBlock(const float* microphone, const float* reference
     // protection below still preserves the independent nearby source.
     const bool usefulModel = bestFarEndReductionDB_ >= 3.0f &&
         (linearErrorEnergy < microphoneEnergy * 0.95f || (converged && doubleTalk));
-    if (finiteModel && boundedModel && usefulModel) {
+    weakModelBlocks_ = usefulModel ? 0u : std::min<std::size_t>(weakModelBlocks_ + 1u, 8u);
+    // Do not open every spectral gain on a single poor 5.33 ms block of an
+    // established echo path. Only bridge the first block, and only when the
+    // spectral analysis finds little independent near-end energy. A longer
+    // change or likely voice onset must retain the bounded voice fallback.
+    const bool briefModelDip = converged && weakModelBlocks_ <= 1u &&
+        lastNearEndShare_ < 0.10f && farActive && !inputClipping;
+    if (finiteModel && boundedModel && (usefulModel || briefModelDip)) {
         applyResidualSuppression(microphone, error_.data(), output, farActive,
                                  doubleTalk, microphoneEnergy, errorEnergy);
     } else if (finiteModel && boundedModel && converged && !inputClipping) {

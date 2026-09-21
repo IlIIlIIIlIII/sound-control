@@ -1,0 +1,188 @@
+<Window x:Class="SoundControl.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SoundControl" Title="Personal Tools">
+  <Window.SystemBackdrop><MicaBackdrop/></Window.SystemBackdrop>
+  <Grid x:Name="Root">
+    <Grid.Resources>
+      <DataTemplate x:Key="FilterRow" x:DataType="local:Filter">
+        <Grid ColumnSpacing="12" Padding="0,8">
+          <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+          <TextBlock Text="{x:Bind FrequencyText}"/>
+          <TextBlock Grid.Column="1" Text="{x:Bind GainText}" HorizontalAlignment="Center"/>
+          <TextBlock Grid.Column="2" Text="{x:Bind QText}" HorizontalAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </Grid>
+      </DataTemplate>
+    </Grid.Resources>
+    <NavigationView x:Name="Navigation" IsBackButtonVisible="Collapsed" IsSettingsVisible="False"
+        OpenPaneLength="208" CompactModeThresholdWidth="760" ExpandedModeThresholdWidth="1000"
+                    PaneDisplayMode="Auto" SelectionChanged="Navigate" DisplayModeChanged="NavigationDisplayModeChanged">
+      <NavigationView.PaneCustomContent>
+        <StackPanel x:Name="BrandHeader" Orientation="Horizontal" Spacing="12" Margin="16,28,16,24">
+          <Image Source="Assets/SoundControl.png" Width="40" Height="40" AutomationProperties.Name="SoundControl"/>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="Personal Tools" FontWeight="SemiBold" FontSize="18"/>
+            <TextBlock Text="DESKTOP UTILITIES" FontSize="10" CharacterSpacing="100" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+          </StackPanel>
+        </StackPanel>
+      </NavigationView.PaneCustomContent>
+      <NavigationView.MenuItems>
+        <NavigationViewItem Content="클립보드" Tag="clipboard"><NavigationViewItem.Icon><FontIcon Glyph="&#xE77F;"/></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItem Content="Antigravity 브릿지" Tag="antigravity"><NavigationViewItem.Icon><FontIcon Glyph="&#xE774;"/></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItem x:Name="SoundNav" Content="사운드" Tag="sound"><NavigationViewItem.Icon><FontIcon Glyph="&#xE767;"/></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItem Content="처리 상태" Tag="status"><NavigationViewItem.Icon><FontIcon Glyph="&#xE9D9;"/></NavigationViewItem.Icon></NavigationViewItem>
+      </NavigationView.MenuItems>
+      <NavigationView.FooterMenuItems>
+        <NavigationViewItem Content="앱 종료" Tag="exit"><NavigationViewItem.Icon><FontIcon Glyph="&#xE8BB;"/></NavigationViewItem.Icon></NavigationViewItem>
+      </NavigationView.FooterMenuItems>
+      <Grid Background="{ThemeResource LayerFillColorDefaultBrush}">
+        <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <ScrollViewer x:Name="SoundScroll" HorizontalScrollBarVisibility="Disabled"
+            VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled"
+            AutomationProperties.Name="사운드 설정 스크롤 영역">
+          <StackPanel MaxWidth="1000" HorizontalAlignment="Stretch" Margin="32,28,32,32" Spacing="24">
+            <StackPanel Spacing="8">
+              <TextBlock Text="사운드" Style="{ThemeResource TitleTextBlockStyle}"/>
+              <TextBlock Text="스피커는 내 공간에 맞게, 목소리는 더 선명하게." Style="{StaticResource Muted}" FontSize="14"/>
+            </StackPanel>
+            <InfoBar x:Name="SetupInfo" IsOpen="True" IsClosable="False" Severity="Informational"
+                Title="오디오 효과를 설정해 주세요" Message="장치와 필터를 확인한 후 설치하면 EQ와 반향 제거를 사용할 수 있습니다.">
+              <InfoBar.ActionButton><Button x:Name="InstallButton" Content="설치 및 적용" Click="Install" Style="{ThemeResource AccentButtonStyle}"/></InfoBar.ActionButton>
+            </InfoBar>
+            <StackPanel x:Name="LocalInstallOptions" Spacing="6">
+              <CheckBox x:Name="LocalUnsignedOption" Content="이 PC에서 미서명 오디오 모듈 사용"/>
+              <TextBlock Text="PC 전체의 보호된 오디오 설정을 완화합니다. 일부 스트리밍 재생에 영향을 줄 수 있으며, 원래 설정 복원 시 이전 값으로 되돌립니다." Style="{StaticResource Muted}"/>
+            </StackPanel>
+            <InfoBar x:Name="MessageBar" IsOpen="False" IsClosable="True"/>
+            <StackPanel Spacing="12">
+              <TextBlock Text="오디오 장치" Style="{StaticResource SectionTitle}"/>
+              <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="20">
+                  <Grid ColumnSpacing="20">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="32"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE767;" FontSize="24" VerticalAlignment="Top" Margin="0,4,0,0" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                    <ComboBox x:Name="OutputDevice" Grid.Column="1" Header="스피커 출력" HorizontalAlignment="Stretch"
+                        PlaceholderText="출력 장치를 선택하세요" DisplayMemberPath="Name" AutomationProperties.Name="스피커 출력"/>
+                  </Grid>
+                  <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+                  <Grid ColumnSpacing="20">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="32"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE720;" FontSize="24" VerticalAlignment="Top" Margin="0,4,0,0" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                    <StackPanel Grid.Column="1" Spacing="6">
+                      <ComboBox x:Name="InputDevice" Header="마이크 입력" HorizontalAlignment="Stretch"
+                          PlaceholderText="입력 장치를 선택하세요" DisplayMemberPath="Name" AutomationProperties.Name="마이크 입력"/>
+                      <TextBlock Text="MOTU 입력 1 사용 · Loopback 입력은 선택하지 마세요." Style="{StaticResource Muted}"/>
+                    </StackPanel>
+                  </Grid>
+                  <TextBlock x:Name="DeviceHint" Visibility="Collapsed" Text="장치를 변경하려면 처리 상태에서 기존 설치를 먼저 복원해 주세요." Style="{StaticResource Muted}"/>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <StackPanel Spacing="12">
+              <TextBlock Text="좌우 독립 이퀄라이저" Style="{StaticResource SectionTitle}"/>
+              <Border Style="{StaticResource Card}">
+                <StackPanel Spacing="20">
+                  <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="내 스피커에 맞는 EQ" FontSize="16" FontWeight="SemiBold"/>
+                      <TextBlock Text="각 채널의 REW 필터를 독립적으로 적용합니다." Style="{StaticResource Muted}"/>
+                    </StackPanel>
+                    <ToggleSwitch x:Name="EqSwitch" Grid.Column="1" IsEnabled="False" Toggled="ToggleEffect"
+                        AutomationProperties.Name="시스템 EQ 활성화" OnContent="켜짐" OffContent="꺼짐"
+                        ToolTipService.ToolTip="설치 및 적용을 완료하면 사용할 수 있습니다."/>
+                  </Grid>
+                  <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+                  <Grid x:Name="Profiles" ColumnSpacing="20" RowSpacing="16" SizeChanged="ProfileSizeChanged">
+                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition x:Name="RightColumn"/></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Border Background="{ThemeResource LayerFillColorAltBrush}" CornerRadius="8" Padding="20">
+                      <StackPanel Spacing="14">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                          <TextBlock Text="L" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold"/>
+                          <TextBlock Text="왼쪽 스피커" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock x:Name="LeftSummary" Text="필터 확인 중" Style="{StaticResource Muted}"/>
+                        <ItemsControl x:Name="LeftFilters" ItemTemplate="{StaticResource FilterRow}"/>
+                        <Button x:Name="ImportLeft" Content="L 파일 가져오기" Click="ImportFilter" Tag="0" IsEnabled="False" HorizontalAlignment="Stretch"/>
+                      </StackPanel>
+                    </Border>
+                    <Border x:Name="RightProfile" Grid.Column="1" Background="{ThemeResource LayerFillColorAltBrush}" CornerRadius="8" Padding="20">
+                      <StackPanel Spacing="14">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                          <TextBlock Text="R" FontSize="20" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" FontWeight="SemiBold"/>
+                          <TextBlock Text="오른쪽 스피커" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock x:Name="RightSummary" Text="필터 확인 중" Style="{StaticResource Muted}"/>
+                        <ItemsControl x:Name="RightFilters" ItemTemplate="{StaticResource FilterRow}"/>
+                        <Button x:Name="ImportRight" Content="R 파일 가져오기" Click="ImportFilter" Tag="1" IsEnabled="False" HorizontalAlignment="Stretch"/>
+                      </StackPanel>
+                    </Border>
+                  </Grid>
+                  <TextBlock x:Name="FilterHint" Text="초기 필터: E:\Speaker\L.txt · R.txt. 설치 후 다른 파일로 변경할 수 있습니다." Style="{StaticResource Muted}"/>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+            <StackPanel Spacing="12">
+              <TextBlock Text="마이크" Style="{StaticResource SectionTitle}"/>
+              <Border Style="{StaticResource Card}">
+                <Grid ColumnSpacing="16">
+                  <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <StackPanel Spacing="8">
+                    <TextBlock Text="스피커 반향 제거" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Text="스피커에서 나오는 소리가 마이크로 되돌아오는 것을 줄입니다." Style="{StaticResource Muted}"/>
+                    <TextBlock Text="MOTU 입력 1 · 처리 지연 21.33 ms · Windows 공유 모드" Style="{StaticResource Muted}" FontSize="12"/>
+                  </StackPanel>
+                  <ToggleSwitch x:Name="AecSwitch" Grid.Column="1" IsEnabled="False" Toggled="ToggleEffect"
+                      AutomationProperties.Name="마이크 반향 제거 활성화" OnContent="켜짐" OffContent="꺼짐"
+                      ToolTipService.ToolTip="설치 및 적용을 완료하면 사용할 수 있습니다."/>
+                </Grid>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+        <ScrollViewer x:Name="StatusScroll" Visibility="Collapsed" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel MaxWidth="1000" Margin="32,28,32,32" Spacing="24">
+            <StackPanel Spacing="8">
+              <TextBlock Text="처리 상태" Style="{ThemeResource TitleTextBlockStyle}"/>
+              <TextBlock Text="설치 여부와 실제 오디오 처리를 확인합니다." Style="{StaticResource Muted}" FontSize="14"/>
+            </StackPanel>
+            <Border Style="{StaticResource Card}">
+              <StackPanel Spacing="20">
+                <TextBlock Text="실시간 오디오" Style="{StaticResource SectionTitle}"/>
+                <TextBlock x:Name="RenderStatus" Text="스피커 EQ · 설치 전" TextWrapping="Wrap"/>
+                <TextBlock x:Name="CaptureStatus" Text="마이크 반향 제거 · 설치 전" TextWrapping="Wrap"/>
+                <TextBlock x:Name="ReferenceStatus" Text="스피커 참조 · 대기" Style="{StaticResource Muted}"/>
+                <InfoBar x:Name="ClippingWarning" IsOpen="False" IsClosable="False" Severity="Warning" Title="마이크 입력 과부하" Message="마이크 입력 게인을 낮춰 주세요."/>
+                <TextBlock Text="소리가 재생되거나 마이크가 사용될 때 실제 처리를 확인할 수 있습니다. ASIO·독점 모드에서는 효과가 적용되지 않을 수 있습니다." Style="{StaticResource Muted}"/>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
+              <StackPanel Spacing="16">
+                <TextBlock Text="설치 및 진단" Style="{StaticResource SectionTitle}"/>
+                <TextBlock x:Name="Prerequisites" Text="설치 조건 확인 중" TextWrapping="Wrap"/>
+                <TextBlock Text="미서명 모듈 설치는 PC의 오디오 보호 설정을 변경합니다. 원래 설정 복원 시 함께 복원됩니다. 설치 완료 후에도 실제 처리 상태를 확인해 주세요." Style="{StaticResource Muted}"/>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <Button Content="진단 기록 보기" Click="ShowDiagnostics"/>
+                  <Button x:Name="RestoreButton" Content="원래 설정 복원" Click="Restore"/>
+                </StackPanel>
+                <TextBox x:Name="DiagnosticLog" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="280" AutomationProperties.Name="진단 기록"/>
+              </StackPanel>
+            </Border>
+            <TextBlock Text="SoundControl · WinUI 3" Style="{StaticResource Muted}"/>
+          </StackPanel>
+        </ScrollViewer>
+        <local:AntigravityPage x:Name="BridgePage" Visibility="Collapsed"/>
+        <local:ClipboardPage x:Name="ClipsPage" Visibility="Collapsed"/>
+        <Border x:Name="AudioFooter" Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" Padding="24,12">
+          <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <FontIcon x:Name="StatusIcon" Glyph="&#xE946;" FontSize="14" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+            <TextBlock x:Name="FooterStatus" Grid.Column="1" Text="오디오 상태 확인 중" FontSize="12" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Grid.Column="2" Text="닫아도 트레이에 유지" Style="{StaticResource Muted}" FontSize="12"/>
+          </Grid>
+        </Border>
+      </Grid>
+    </NavigationView>
+  </Grid>
+</Window>

@@ -1,11 +1,13 @@
-# Local endpoint installation. Does not disable Protected Audio, Secure Boot,
-# driver signature checks, or replace the vendor's USB drivers.
+# Local endpoint installation. LocalUnsigned explicitly permits unsigned APOs
+# by changing Protected Audio only; its previous value is included in rollback.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$RenderId,
     [Parameter(Mandatory)][string]$CaptureId,
     [string]$SourceDirectory = '',
-    [switch]$CheckOnly
+    [switch]$CheckOnly,
+    [switch]$LocalUnsigned,
+    [switch]$LegacyCapture
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -39,17 +41,20 @@ foreach ($endpoint in @($render,$capture)) {
         $key.Close()
     }
 }
-$payload = @('SoundControlAPO.dll','SoundControlWindows.exe','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1')
+$payload = @('SoundControlAPO.dll','SoundControlSetup.exe','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1','WindowsDeviceRecovery.psm1','repair-windows-device.ps1','register-windows-device-recovery.ps1','ui')
+if(Test-Path -LiteralPath (Join-Path $SourceDirectory 'npu\enabled.flag')) { $payload += 'npu' }
 foreach ($name in $payload) {
     if (-not (Test-Path -LiteralPath (Join-Path $SourceDirectory $name))) { throw "Missing payload: $name. Use cmake --install output." }
 }
-foreach ($name in @('SoundControlAPO.dll','SoundControlWindows.exe')) {
+foreach ($name in @('SoundControlAPO.dll','SoundControlSetup.exe','ui\SoundControlBridge.dll','ui\SoundControlWindows.exe','ui\SoundControlWindows.dll')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $SourceDirectory $name))) { throw "Missing payload: $name. Run Scripts\build-windows.ps1." }
     $signature = Get-AuthenticodeSignature -LiteralPath (Join-Path $SourceDirectory $name)
-    if ($signature.Status -ne 'Valid') {
+    if (-not (Test-PayloadSignature $signature.Status.ToString() -LocalUnsigned:$LocalUnsigned)) {
         throw "Installation blocked: $name signature is $($signature.Status). Supply signed binaries. No audio settings have been changed. A trusted Authenticode signature alone does not guarantee Protected Audio acceptance; actual loading must also be verified."
     }
 }
 if ($CheckOnly) {
+    if ($LocalUnsigned) { Write-Output 'Local unsigned mode: installation will set DisableProtectedAudioDG=1 for this PC and back up its previous value. Protected-content playback may be affected.' }
     Write-Output 'Preflight passed. No files or audio settings were changed. Protected Audio loading still requires runtime verification.'
     return
 }
@@ -57,6 +62,9 @@ Assert-Administrator
 # Build a complete reversible list before touching endpoint/COM values.
 $changes = [Collections.Generic.List[object]]::new()
 function Add-Change($path,$name,$kind,$value) { $changes.Add([pscustomobject]@{Path=$path;Name=$name;Kind=$kind;Value=$value}) }
+if ($LocalUnsigned) {
+    Add-Change 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Audio' 'DisableProtectedAudioDG' 'DWord' 1
+}
 foreach ($item in @(@($eq,'SoundControl stereo EQ',15),@($aec,'SoundControl microphone echo cancellation',12))) {
     $id=$item[0]; $title=$item[1]; $flags=$item[2]
     $classPath="HKLM:\SOFTWARE\Classes\CLSID\$id"
@@ -74,8 +82,19 @@ foreach ($item in @(@($eq,'SoundControl stereo EQ',15),@($aec,'SoundControl micr
 }
 Add-Change $render "$fx,7" 'String' $eq
 Add-Change $render "$modes,7" 'MultiString' ([string[]]@($defaultMode))
-Add-Change $capture "$fx,6" 'String' $aec
-Add-Change $capture "$modes,6" 'MultiString' ([string[]]@($defaultMode,$communicationsMode))
+if ($LegacyCapture) {
+    # Explicit compatibility mode for capture drivers that skip SFX/MFX.
+    # The running desktop app supplies the selected speaker's loopback.
+    foreach ($slot in 5,6,7,13,14,15) {
+        if (Get-ItemProperty -LiteralPath $capture -Name "$fx,$slot" -ErrorAction SilentlyContinue) {
+            throw 'LegacyCapture requires an endpoint without existing modern effects; preserve those registrations before changing capture modes.'
+        }
+    }
+    Add-Change $capture "$fx,1" 'String' $aec
+} else {
+    Add-Change $capture "$fx,6" 'String' $aec
+    Add-Change $capture "$modes,6" 'MultiString' ([string[]]@($defaultMode,$communicationsMode))
+}
 # Preserve and enable the endpoint system-effects switch.
 Add-Change $render '{1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5' 'DWord' 0
 Add-Change $capture '{1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5' 'DWord' 0
@@ -84,24 +103,33 @@ New-Item -ItemType Directory -Path $destination -Force | Out-Null
 foreach ($name in $payload) {
     $source = [IO.Path]::GetFullPath((Join-Path $SourceDirectory $name))
     $target = [IO.Path]::GetFullPath((Join-Path $destination $name))
-    if ($source -ne $target) { Copy-Item -LiteralPath $source -Destination $target -Force }
+    if ($source -ne $target) {
+        if (Test-Path -LiteralPath $source -PathType Container) {
+            New-Item -ItemType Directory -Path $target -Force | Out-Null
+            Get-ChildItem -LiteralPath $source | Copy-Item -Destination $target -Recurse -Force
+        } else { Copy-Item -LiteralPath $source -Destination $target -Force }
+    }
 }
 # Recovery metadata is admin-owned in Program Files, never in user-writable data.
-[pscustomobject]@{Version=1;RenderId=$RenderId;CaptureId=$CaptureId;Entries=$original} | Export-Clixml -LiteralPath $backupPath
+[pscustomobject]@{Version=1;LocalUnsigned=[bool]$LocalUnsigned;RenderId=$RenderId;CaptureId=$CaptureId;Entries=$original} | Export-Clixml -LiteralPath $backupPath
 try {
     $data = Join-Path $env:ProgramData 'SoundControl'
     New-Item -ItemType Directory -Path $data -Force | Out-Null
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     & icacls.exe $data /grant "*$($sid):(OI)(CI)M" '*S-1-5-19:(OI)(CI)M' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Unable to set audio-engine settings access.' }
-    $p = Start-Process -FilePath (Join-Path $destination 'SoundControlWindows.exe') -ArgumentList @('--initialize',"`"$RenderId`"","`"$CaptureId`"") -Wait -PassThru
+    $p = Start-Process -FilePath (Join-Path $destination 'SoundControlSetup.exe') -ArgumentList @('--initialize',"`"$RenderId`"","`"$CaptureId`"") -WindowStyle Hidden -Wait -PassThru
     if ($p.ExitCode -ne 0) { throw "Initial device/EQ configuration failed ($($p.ExitCode)). Check E:\Speaker\L.txt and R.txt." }
     foreach ($change in $changes) { Set-RegistryValue $change.Path $change.Name $change.Kind $change.Value }
+    & (Join-Path $destination 'register-windows-device-recovery.ps1')
 } catch {
     $failure = $_
-    try { Restore-RegistryValues $original; Remove-Item -LiteralPath $backupPath }
+    try {
+        Unregister-ScheduledTask -TaskName 'SoundControl Device Recovery' -Confirm:$false -ErrorAction SilentlyContinue
+        Restore-RegistryValues $original; Remove-Item -LiteralPath $backupPath
+    }
     catch { throw "Installation failed ($failure); rollback also failed ($_). Keep $backupPath and run uninstall-windows.ps1 elevated." }
     throw "Installation failed; original effect registrations restored. $failure"
 }
-Write-Output 'Registered; actual processing is NOT yet verified. Reconnect SMSL and MOTU (or reboot), reopen shared-mode playback/capture apps, then inspect the SoundControl status window. Protected Audio rejection requires a correctly signed APO package; this installer does not weaken system protections.'
-Start-Process -FilePath (Join-Path $destination 'SoundControlWindows.exe')
+Write-Output 'Registered; actual processing is NOT yet verified. Restart Windows Audio (interrupts playback/capture) or reboot, reopen shared-mode playback/capture apps, then inspect the SoundControl status window. Uninstall restores the backed-up audio settings, including Protected Audio when local unsigned mode was used.'
+# The existing WinUI window refreshes in place; do not launch an elevated UI.

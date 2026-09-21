@@ -1,0 +1,94 @@
+{
+  "sample_rate": 16000,
+  "model_delay_removed_samples": 384,
+  "cycles": {
+    "before": [
+      {
+        "tail_rms_dbfs": -49.52847699386073,
+        "tail_p95_100ms_dbfs": -43.54153815910276,
+        "tail_worst_100ms_erle_db": 7.776596516644246,
+        "voice_gain_db": -1.2168821096420288,
+        "voice_si_sdr_db": 10.077872276306152
+      },
+      {
+        "tail_rms_dbfs": -49.47171115559122,
+        "tail_p95_100ms_dbfs": -43.51414936037258,
+        "tail_worst_100ms_erle_db": 7.390102814824021,
+        "voice_gain_db": -1.3164950609207153,
+        "voice_si_sdr_db": 9.962523460388184
+      },
+      {
+        "tail_rms_dbfs": -49.41355579897737,
+        "tail_p95_100ms_dbfs": -43.440713584609824,
+        "tail_worst_100ms_erle_db": 7.395157485865079,
+        "voice_gain_db": -1.3161215782165527,
+        "voice_si_sdr_db": 9.96623706817627
+      },
+      {
+        "tail_rms_dbfs": -49.39996253478412,
+        "tail_p95_100ms_dbfs": -43.434531467552716,
+        "tail_worst_100ms_erle_db": 7.382935220255769,
+        "voice_gain_db": -1.3169902563095093,
+        "voice_si_sdr_db": 9.965835571289062
+      },
+      {
+        "tail_rms_dbfs": -49.39022005891188,
+        "tail_p95_100ms_dbfs": -43.431668453680594,
+        "tail_worst_100ms_erle_db": 7.381318645283659,
+        "voice_gain_db": -1.3180207014083862,
+        "voice_si_sdr_db": 9.965927124023438
+      },
+      {
+        "tail_rms_dbfs": -49.36588125404704,
+        "tail_p95_100ms_dbfs": -43.399448576202275,
+        "tail_worst_100ms_erle_db": 7.384294942604077,
+        "voice_gain_db": -1.3196017742156982,
+        "voice_si_sdr_db": 9.964638710021973
+      }
+    ],
+    "after": [
+      {
+        "tail_rms_dbfs": -52.54724144142475,
+        "tail_p95_100ms_dbfs": -45.517429668762944,
+        "tail_worst_100ms_erle_db": 11.725047517065006,
+        "voice_gain_db": -1.4045836925506592,
+        "voice_si_sdr_db": 9.447601318359375
+      },
+      {
+        "tail_rms_dbfs": -52.5451184919843,
+        "tail_p95_100ms_dbfs": -45.52023246930279,
+        "tail_worst_100ms_erle_db": 11.723015083161359,
+        "voice_gain_db": -1.4039866924285889,
+        "voice_si_sdr_db": 9.449146270751953
+      },
+      {
+        "tail_rms_dbfs": -52.55012286578634,
+        "tail_p95_100ms_dbfs": -45.52490353439778,
+        "tail_worst_100ms_erle_db": 11.725972305030952,
+        "voice_gain_db": -1.4039009809494019,
+        "voice_si_sdr_db": 9.450462341308594
+      },
+      {
+        "tail_rms_dbfs": -52.55122910147737,
+        "tail_p95_100ms_dbfs": -45.523282113085074,
+        "tail_worst_100ms_erle_db": 11.723422707362959,
+        "voice_gain_db": -1.404522180557251,
+        "voice_si_sdr_db": 9.448163986206055
+      },
+      {
+        "tail_rms_dbfs": -52.546125518012005,
+        "tail_p95_100ms_dbfs": -45.518800895173975,
+        "tail_worst_100ms_erle_db": 11.723228108272657,
+        "voice_gain_db": -1.4041072130203247,
+        "voice_si_sdr_db": 9.448970794677734
+      },
+      {
+        "tail_rms_dbfs": -52.54890196845763,
+        "tail_p95_100ms_dbfs": -45.517678133442686,
+        "tail_worst_100ms_erle_db": 11.72196655522342,
+        "voice_gain_db": -1.4038783311843872,
+        "voice_si_sdr_db": 9.45056438446045
+      }
+    ]
+  }
+}

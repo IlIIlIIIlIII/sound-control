@@ -1,5 +1,9 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+function Test-PayloadSignature([string]$Status, [switch]$LocalUnsigned) {
+    # Local mode accepts deliberately unsigned builds, never a broken signature.
+    return $Status -eq 'Valid' -or ($LocalUnsigned -and $Status -eq 'NotSigned')
+}
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
@@ -30,13 +34,18 @@ function Set-RegistryValue([string]$Path, [string]$Name, [string]$Kind, $Value) 
     $parts = $Path -split ':\\', 2
     if ($parts.Count -ne 2) { throw 'Expected an HKLM or HKCU registry path.' }
     $hive = switch ($parts[0]) { 'HKLM' { [Microsoft.Win32.Registry]::LocalMachine } 'HKCU' { [Microsoft.Win32.Registry]::CurrentUser } default { throw 'Unsupported registry hive.' } }
-    $key = $hive.CreateSubKey($parts[1], $true)
+    # Existing endpoint keys allow SetValue but may deny CreateSubKey/WriteKey.
+    # Request only the permission needed, preserving the device's original ACL.
+    $key = $hive.OpenSubKey($parts[1], [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, [Security.AccessControl.RegistryRights]::SetValue)
+    if ($null -eq $key) { $key = $hive.CreateSubKey($parts[1], $true) }
     try { $key.SetValue($Name, $Value, [Microsoft.Win32.RegistryValueKind]::$Kind) } finally { $key.Close() }
 }
 function Restore-RegistryValues($Entries) {
     # Reverse order so empty keys created by this transaction can be removed.
     $reverse = @($Entries); [array]::Reverse($reverse)
+    $failures = [Collections.Generic.List[string]]::new()
     foreach ($entry in $reverse) {
+      try {
         if ($entry.Existed) {
             $value = $entry.Value
             if ($entry.Kind -eq 'MultiString') { $value = [string[]]$value }
@@ -45,13 +54,19 @@ function Restore-RegistryValues($Entries) {
         } elseif (Test-Path -LiteralPath $entry.Path) {
             $parts = $entry.Path -split ':\\', 2
             $hive = if ($parts[0] -eq 'HKLM') { [Microsoft.Win32.Registry]::LocalMachine } else { [Microsoft.Win32.Registry]::CurrentUser }
-            $key = $hive.OpenSubKey($parts[1], $true)
+            $existing = Get-Item -LiteralPath $entry.Path
+            $hasValue = $existing.GetValueNames() -contains $entry.Name
+            $existing.Close()
+            if (-not $hasValue -and $entry.KeyExisted) { continue }
+            $key = $hive.OpenSubKey($parts[1], [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, [Security.AccessControl.RegistryRights]::SetValue)
             try { $key.DeleteValue($entry.Name, $false) } finally { $key.Close() }
             $key = Get-Item -LiteralPath $entry.Path
             $empty = $key.ValueCount -eq 0 -and $key.SubKeyCount -eq 0
             $key.Close()
             if (-not $entry.KeyExisted -and $empty) { Remove-Item -LiteralPath $entry.Path }
         }
+      } catch { $failures.Add("$($entry.Path) / $($entry.Name): $_") }
     }
+    if ($failures.Count -gt 0) { throw ($failures -join "`n") }
 }
-Export-ModuleMember -Function Assert-Administrator,Get-EndpointPath,Save-RegistryValue,Set-RegistryValue,Restore-RegistryValues
+Export-ModuleMember -Function Test-PayloadSignature,Assert-Administrator,Get-EndpointPath,Save-RegistryValue,Set-RegistryValue,Restore-RegistryValues

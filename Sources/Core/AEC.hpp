@@ -174,6 +174,7 @@ private:
 
     signal::FFTSetup fftSetup_ = nullptr;
     EchoProfile profile_ = EchoProfile::adaptive;
+    std::size_t weakModelBlocks_ = 0;
     std::atomic<EchoProfile> requestedProfile_{EchoProfile::adaptive};
 
     StereoBank referenceReal_;
