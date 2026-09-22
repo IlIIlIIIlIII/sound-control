@@ -15,6 +15,7 @@ if ([string]::IsNullOrWhiteSpace($SourceDirectory)) { $SourceDirectory = $PSScri
 Import-Module (Join-Path $PSScriptRoot 'WindowsInstall.psm1') -Force
 $render = Get-EndpointPath $RenderId 'Render'
 $capture = Get-EndpointPath $CaptureId 'Capture'
+$captureMode = Get-CaptureRegistrationMode (Join-Path (Split-Path $capture -Parent) 'Properties') -LegacyCapture:$LegacyCapture
 $build = [int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuildNumber
 if ($build -lt 22000) { throw 'Windows 11 build 22000 or later is required for CAPX AEC.' }
 $eq = '{4538BFC1-CCED-4C3D-A981-895A73711201}'
@@ -41,7 +42,7 @@ foreach ($endpoint in @($render,$capture)) {
         $key.Close()
     }
 }
-$payload = @('SoundControlAPO.dll','SoundControlSetup.exe','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1','WindowsDeviceRecovery.psm1','repair-windows-device.ps1','register-windows-device-recovery.ps1','ui')
+$payload = @('SoundControlAPO.dll','SoundControlSetup.exe','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1','WindowsDeviceRecovery.psm1','repair-windows-device.ps1','repair-windows-capture.ps1','register-windows-device-recovery.ps1','ui')
 if(Test-Path -LiteralPath (Join-Path $SourceDirectory 'npu\enabled.flag')) { $payload += 'npu' }
 foreach ($name in $payload) {
     if (-not (Test-Path -LiteralPath (Join-Path $SourceDirectory $name))) { throw "Missing payload: $name. Use cmake --install output." }
@@ -54,6 +55,7 @@ foreach ($name in @('SoundControlAPO.dll','SoundControlSetup.exe','ui\SoundContr
     }
 }
 if ($CheckOnly) {
+    Write-Output "Capture registration: $captureMode. Legacy capture requires the SoundControl desktop app to keep running."
     if ($LocalUnsigned) { Write-Output 'Local unsigned mode: installation will set DisableProtectedAudioDG=1 for this PC and back up its previous value. Protected-content playback may be affected.' }
     Write-Output 'Preflight passed. No files or audio settings were changed. Protected Audio loading still requires runtime verification.'
     return
@@ -82,7 +84,7 @@ foreach ($item in @(@($eq,'SoundControl stereo EQ',15),@($aec,'SoundControl micr
 }
 Add-Change $render "$fx,7" 'String' $eq
 Add-Change $render "$modes,7" 'MultiString' ([string[]]@($defaultMode))
-if ($LegacyCapture) {
+if ($captureMode -eq 'Legacy') {
     # Explicit compatibility mode for capture drivers that skip SFX/MFX.
     # The running desktop app supplies the selected speaker's loopback.
     foreach ($slot in 5,6,7,13,14,15) {
@@ -111,7 +113,7 @@ foreach ($name in $payload) {
     }
 }
 # Recovery metadata is admin-owned in Program Files, never in user-writable data.
-[pscustomobject]@{Version=1;LocalUnsigned=[bool]$LocalUnsigned;RenderId=$RenderId;CaptureId=$CaptureId;Entries=$original} | Export-Clixml -LiteralPath $backupPath
+[pscustomobject]@{Version=1;LocalUnsigned=[bool]$LocalUnsigned;RenderId=$RenderId;CaptureId=$CaptureId;CaptureMode=$captureMode;Entries=$original} | Export-Clixml -LiteralPath $backupPath
 try {
     $data = Join-Path $env:ProgramData 'SoundControl'
     New-Item -ItemType Directory -Path $data -Force | Out-Null

@@ -5,6 +5,16 @@ $ErrorActionPreference = 'Stop'
 Import-Module $ModulePath -Force
 $root = 'HKCU:\Software\SoundControlInstallerTest-' + [guid]::NewGuid().ToString('N')
 try {
+    $properties = "$root\Capture\Properties"
+    New-Item -Path $properties -Force | Out-Null
+    if ((Get-CaptureRegistrationMode $properties) -ne 'Modern') { throw 'Unknown capture must retain modern mode.' }
+    Set-RegistryValue $properties '{a45c254e-df1c-4efd-8020-67d146a850e0},14' 'String' 'In 1-2 (MOTU M Series)'
+    if ((Get-CaptureRegistrationMode $properties) -ne 'Modern') { throw 'Friendly name must not select legacy mode.' }
+    Set-RegistryValue $properties '{a8b865dd-2e3d-4094-ad97-e593a70c75d6},8' 'String' 'USB\VID_07FD&PID_000B&MI_00'
+    if ((Get-CaptureRegistrationMode $properties) -ne 'Legacy') { throw 'Known MOTU interface must automatically select LFX.' }
+    Set-RegistryValue $properties '{a8b865dd-2e3d-4094-ad97-e593a70c75d6},8' 'String' 'USB\VID_07FD&PID_000B&MI_01'
+    if ((Get-CaptureRegistrationMode $properties) -ne 'Modern') { throw 'Other USB interfaces must not inherit the workaround.' }
+    if ((Get-CaptureRegistrationMode $properties -LegacyCapture) -ne 'Legacy') { throw 'Explicit legacy override was ignored.' }
     if ((Test-PayloadSignature 'NotSigned') -or -not (Test-PayloadSignature 'Valid') -or
         -not (Test-PayloadSignature 'NotSigned' -LocalUnsigned) -or
         (Test-PayloadSignature 'HashMismatch' -LocalUnsigned) -or

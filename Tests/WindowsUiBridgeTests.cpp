@@ -6,6 +6,19 @@ int failures=0;
 void expect(bool value,const char* message) { if(!value){std::cerr<<message<<'\n';++failures;} }
 }
 int main() {
+    {
+        Meter m{}; LARGE_INTEGER now{}; QueryPerformanceCounter(&now);
+        m.lastQpc=now.QuadPart; m.enabled=1; m.reference=0;
+        expect(meter(m,true,true).find(L"반향 제거 확인 안 됨")!=std::wstring::npos,"Live capture without reference must not claim echo removal");
+        m.reference=1;
+        expect(meter(m,true,true).find(L"처리 중")!=std::wstring::npos,"Live capture with reference reports processing");
+        m.enabled=0;
+        expect(meter(m,true,true).find(L"\"enabled\":false")!=std::wstring::npos,"OS-bypassed capture must not report enabled");
+        m.enabled=1;
+        m.lastQpc=0;
+        expect(meter(m,true,true).find(L"오디오 처리 확인 대기")!=std::wstring::npos,"Stale capture must not claim processing even with old reference");
+        expect(meter(m,true,true).find(L"\"enabled\":false")!=std::wstring::npos,"Stale enabled flag must not report a live effect");
+    }
     const auto directory=dataDirectory();
     std::filesystem::create_directories(directory);
     {

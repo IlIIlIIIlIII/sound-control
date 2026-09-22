@@ -71,17 +71,19 @@ std::wstring profile(const std::filesystem::path& path,Channel channel) {
     }
     return r+L"]}";
 }
-std::wstring meter(const Meter& m,bool connected) {
+std::wstring meter(const Meter& m,bool connected,bool capture=false) {
     LARGE_INTEGER now{},frequency{}; QueryPerformanceCounter(&now);QueryPerformanceFrequency(&frequency);
     const auto last=readWide(&m.lastQpc);
     const bool active=connected&&last>0&&now.QuadPart>=last&&now.QuadPart-last<=frequency.QuadPart*3;
     std::wstring state=!connected?L"장치 연결 대기":!active?L"오디오 처리 확인 대기":readWord(&m.enabled)?L"처리 중":L"바이패스";
+    if(capture&&active&&readWord(&m.enabled)&&!readWord(&m.reference)) state=L"스피커 참조 대기 · 반향 제거 확인 안 됨";
     if(active&&readWord(&m.enabled)&&readWord(&m.neuralState)!=0){
         const auto neural=readWord(&m.neuralState);
         state=neural<0?L"NPU 오류 · 원음 출력":neural==1?L"NPU 모델 준비 중":
             readWord(&m.reference)?L"DTLN-AEC 256 · NPU 처리 중":L"NPU · 스피커 참조 대기";
     }
     return L"{\"state\":"+quote(state)+L",\"active\":"+(active?L"true":L"false")+
+        L",\"enabled\":"+((active&&readWord(&m.enabled))?L"true":L"false")+
         L",\"rate\":"+std::to_wstring(readWord(&m.rate))+L",\"error\":"+std::to_wstring(readWord(&m.error))+L"}";
 }
 struct Session {
@@ -117,7 +119,7 @@ API const wchar_t* __cdecl MT_Snapshot(void* handle) noexcept {
         const auto directory=ready?dataDirectory():std::filesystem::path(L"E:\\Speaker");
         Meter empty{};const auto* data=ready?s.shared.data():nullptr;
         const auto render=meter(data?data->render:empty,contains(outputs,c.renderId));
-        const auto capture=meter(data?data->capture:empty,contains(inputs,c.captureId));
+        const auto capture=meter(data?data->capture:empty,contains(inputs,c.captureId),true);
         s.result=L"{\"ready\":"+std::wstring(ready?L"true":L"false")+L",\"revision\":"+std::to_wstring(revision)+
             L",\"eqEnabled\":"+(c.eqEnabled?L"true":L"false")+L",\"aecEnabled\":"+(c.aecEnabled?L"true":L"false")+
             L",\"renderId\":"+quote(c.renderId)+L",\"captureId\":"+quote(c.captureId)+

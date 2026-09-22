@@ -13,7 +13,7 @@ public sealed record Filter(double Frequency, double Gain, double Q)
     public string QText => $"Q {Q:0.##}";
 }
 public sealed record Profile(bool Valid, string Summary, Filter[] Filters);
-public sealed record Meter(string State, bool Active, int Rate, int Error);
+public sealed record Meter(string State, bool Active, int Rate, int Error, bool Enabled);
 public sealed record AudioSnapshot(bool Ready, int Revision, bool EqEnabled, bool AecEnabled,
     string RenderId, string CaptureId, AudioDevice[] Outputs, AudioDevice[] Inputs,
     Profile Left, Profile Right, Meter Render, Meter Capture, bool Reference, bool Clipping, string? Error);

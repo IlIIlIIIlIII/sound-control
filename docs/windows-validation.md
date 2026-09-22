@@ -1,5 +1,11 @@
 # Windows 이식 검증 기록
 
+## 2026-09-22: MOTU 마이크 효과 연결 복구
+
+Windows 녹음기에 YouTube 소리가 그대로 들어간다는 보고를 조사했다. 설치된 MOTU 입력에는 MFX만 등록되어 있었고, 로그와 공유 미터에서 AEC 초기화/처리 콜백이 없고 rate=0임을 확인했다. EQ는 별도로 실행 중이었다.
+
+`repair-windows-capture.ps1`로 해당 SoundControl MFX를 LFX로 전환하고 Windows Audio를 재시작했다. 기존 설치 백업의 원래 값은 유지하고 LFX 슬롯의 변경 전 값을 추가했다. EQ 설정과 필터는 그대로 유지했다. 실제 audiodg의 AEC Initialize 성공과 공유 모드 48kHz 캡처 콜백, enabled=1, error=0을 확인했다. 사용자가 YouTube를 재생한 상태에서 reference=1과 내부 reductionDB100 지표 약 0.64~37.09dB를 관찰했다. 이는 APO 내부 지표이며, 독립적인 입출력 동시 비교나 녹음기 결과의 청취 검증은 아니다. 오디오 샘플은 파일로 저장하지 않았다. 격리 HKCU 설치 복원 테스트와 전환 후 재실행의 무변경 동작도 통과했다.
+
 ## 2026-09-21: SMSL endpoint 변경 후 자동 복구
 
 - 원인: 설정은 연결이 끊긴 `스피커(3- SMSL USB DAC)` / `43406fc5-af54-479b-b33d-846022c5cbec`를 가리켰고, 활성 출력은 `스피커(5- SMSL USB DAC)` / `8854650b-81fd-436c-bcb9-cfc59f893b9c`였다. AEC/NPU는 켜져 있으나 참조가 없어 원음을 전달했다. 새 출력에는 EQ 등록도 없었다.

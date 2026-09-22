@@ -27,6 +27,7 @@ install(TARGETS SoundControlSetup SoundControlAPO RUNTIME DESTINATION . LIBRARY 
 install(TARGETS SoundControlBridge RUNTIME DESTINATION ui LIBRARY DESTINATION ui)
 install(FILES "${PROJECT_SOURCE_DIR}/Scripts/install-windows.ps1" "${PROJECT_SOURCE_DIR}/Scripts/uninstall-windows.ps1" "${PROJECT_SOURCE_DIR}/Scripts/WindowsInstall.psm1" DESTINATION .)
 install(FILES "${PROJECT_SOURCE_DIR}/Scripts/WindowsDeviceRecovery.psm1" "${PROJECT_SOURCE_DIR}/Scripts/repair-windows-device.ps1" "${PROJECT_SOURCE_DIR}/Scripts/register-windows-device-recovery.ps1" DESTINATION .)
+install(FILES "${PROJECT_SOURCE_DIR}/Scripts/repair-windows-capture.ps1" DESTINATION .)
 add_test(NAME SoundControlDeviceRecoveryTests COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${PROJECT_SOURCE_DIR}/Tests/WindowsDeviceRecoveryTests.ps1")
 
 add_executable(SoundControlApoTests "${PROJECT_SOURCE_DIR}/Tests/WindowsApoTests.cpp" Shared.cpp)

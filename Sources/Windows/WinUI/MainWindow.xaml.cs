@@ -151,11 +151,19 @@ public sealed partial class MainWindow : Window
             RestoreButton.IsEnabled = installed && !busy;
             RenderStatus.Text = "스피커 EQ  ·  " + Describe(next.Render, installed);
             CaptureStatus.Text = "마이크 반향 제거  ·  " + Describe(next.Capture, installed);
-            ReferenceStatus.Text = next.Reference ? "스피커 참조  ·  처리 활성" : "스피커 참조  ·  대기 / 학습 / 참조 없음";
+            bool captureVerified = next.AecEnabled && next.Capture.Active && next.Capture.Enabled && next.Capture.Error == 0 && next.Reference;
+            ReferenceStatus.Text = next.Capture.Active && next.Reference ? "스피커 참조  ·  신호 확인" : "스피커 참조  ·  확인 대기";
+            CaptureWarning.IsOpen = installed && next.AecEnabled && !captureVerified;
+            CaptureWarning.Message = next.Capture.Error != 0
+                ? $"마이크 처리 오류 {next.Capture.Error}. 처리 상태의 진단 기록을 확인해 주세요."
+                : !next.Capture.Active
+                ? "마이크 처리 콜백이 확인되지 않았습니다. 녹음 앱을 열어 확인해 주세요. 녹음 중에도 이 안내가 유지되면 효과 연결을 점검해야 합니다. EQ 동작만으로 마이크 반향 제거를 확인할 수 없습니다."
+                : !next.Capture.Enabled
+                ? "마이크 효과가 우회되고 있습니다. Windows 입력 장치의 오디오 향상 기능과 녹음 앱 설정을 확인해 주세요."
+                : "스피커 참조 신호가 확인되지 않았습니다. 선택한 스피커로 소리를 재생하고 SoundControl을 백그라운드에 유지해 주세요. 무음 중에는 확인을 기다립니다.";
             ClippingWarning.IsOpen = next.Clipping;
             FooterStatus.Text = !installed ? "설치 전 · 오디오 효과가 적용되지 않았습니다"
-                : next.Render.Active || next.Capture.Active ? "오디오 처리 연결됨 · 자세한 내용은 처리 상태에서 확인"
-                : "설치됨 · 실제 오디오 처리 확인 대기";
+                : $"EQ: {(!next.EqEnabled ? "꺼짐" : next.Render.Error != 0 ? "오류" : next.Render.Active && next.Render.Enabled ? "처리 중" : "확인 대기")} · 반향 제거: {(!next.AecEnabled ? "꺼짐" : captureVerified ? "처리 경로 확인" : "확인 안 됨")}";
             Prerequisites.Text = $"왼쪽 필터: {(next.Left.Valid ? "준비됨" : "파일 필요")}\n오른쪽 필터: {(next.Right.Valid ? "준비됨" : "파일 필요")}\n설치: {(installed ? "등록됨 · 실제 처리는 위 상태에서 확인" : "미설치")}";
             current = next;
         }
@@ -279,7 +287,8 @@ public sealed partial class MainWindow : Window
             await process.WaitForExitAsync();
             if (process.ExitCode != 0) throw new InvalidOperationException($"설치 도구가 완료되지 않았습니다 (코드 {process.ExitCode}).");
             await ExplainAsync(remove ? "원래 설정으로 복원했습니다" : "효과 등록을 완료했습니다",
-                "PC를 다시 시작하고 재생·통화 앱을 다시 열어 주세요. 실제 오디오 처리는 처리 상태에서 확인할 수 있습니다.");
+                remove ? "PC를 다시 시작하고 재생·녹음 앱을 다시 열어 주세요."
+                : "PC를 다시 시작하고 재생·녹음 앱을 다시 열어 주세요. 스피커 소리를 재생하면서 녹음을 시작해 마이크 처리와 스피커 참조를 모두 확인해야 합니다. 등록 완료만으로 반향 제거가 검증되지는 않습니다. 호환 방식은 SoundControl을 백그라운드에 유지해야 합니다.");
         }
         catch (Exception e) { await ExplainAsync("설치 작업을 완료하지 못했습니다", e.Message); }
         finally { busy = false; await RefreshAsync(); }

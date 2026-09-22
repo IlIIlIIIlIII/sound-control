@@ -4,6 +4,16 @@ function Test-PayloadSignature([string]$Status, [switch]$LocalUnsigned) {
     # Local mode accepts deliberately unsigned builds, never a broken signature.
     return $Status -eq 'Valid' -or ($LocalUnsigned -and $Status -eq 'NotSigned')
 }
+function Get-CaptureRegistrationMode([string]$PropertiesPath, [switch]$LegacyCapture) {
+    if ($LegacyCapture) { return 'Legacy' }
+    # This exact MOTU USB interface was verified to skip MFX on this PC.
+    # Do not use a mutable friendly name or extend the workaround to all MOTU devices.
+    $key = Get-Item -LiteralPath $PropertiesPath -ErrorAction Stop
+    try { $hardware = $key.GetValue('{a8b865dd-2e3d-4094-ad97-e593a70c75d6},8') }
+    finally { $key.Close() }
+    if ($hardware -is [string] -and $hardware -ieq 'USB\VID_07FD&PID_000B&MI_00') { return 'Legacy' }
+    return 'Modern'
+}
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
@@ -69,4 +79,4 @@ function Restore-RegistryValues($Entries) {
     }
     if ($failures.Count -gt 0) { throw ($failures -join "`n") }
 }
-Export-ModuleMember -Function Test-PayloadSignature,Assert-Administrator,Get-EndpointPath,Save-RegistryValue,Set-RegistryValue,Restore-RegistryValues
+Export-ModuleMember -Function Test-PayloadSignature,Get-CaptureRegistrationMode,Assert-Administrator,Get-EndpointPath,Save-RegistryValue,Set-RegistryValue,Restore-RegistryValues

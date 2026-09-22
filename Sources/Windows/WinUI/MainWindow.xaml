@@ -54,6 +54,8 @@
               <TextBlock Text="PC 전체의 보호된 오디오 설정을 완화합니다. 일부 스트리밍 재생에 영향을 줄 수 있으며, 원래 설정 복원 시 이전 값으로 되돌립니다." Style="{StaticResource Muted}"/>
             </StackPanel>
             <InfoBar x:Name="MessageBar" IsOpen="False" IsClosable="True"/>
+            <InfoBar x:Name="CaptureWarning" IsOpen="False" IsClosable="False" Severity="Warning"
+                Title="마이크 반향 제거를 확인해 주세요"/>
             <StackPanel Spacing="12">
               <TextBlock Text="오디오 장치" Style="{StaticResource SectionTitle}"/>
               <Border Style="{StaticResource Card}">
@@ -71,7 +73,7 @@
                     <StackPanel Grid.Column="1" Spacing="6">
                       <ComboBox x:Name="InputDevice" Header="마이크 입력" HorizontalAlignment="Stretch"
                           PlaceholderText="입력 장치를 선택하세요" DisplayMemberPath="Name" AutomationProperties.Name="마이크 입력"/>
-                      <TextBlock Text="MOTU 입력 1 사용 · Loopback 입력은 선택하지 마세요." Style="{StaticResource Muted}"/>
+                      <TextBlock Text="MOTU 입력 1 사용 · Loopback 입력은 선택하지 마세요. 지원 MOTU 장치는 호환 방식으로 자동 설치됩니다. 스피커 참조 전달을 위해 앱을 백그라운드에 유지해 주세요." Style="{StaticResource Muted}"/>
                     </StackPanel>
                   </Grid>
                   <TextBlock x:Name="DeviceHint" Visibility="Collapsed" Text="장치를 변경하려면 처리 상태에서 기존 설치를 먼저 복원해 주세요." Style="{StaticResource Muted}"/>
