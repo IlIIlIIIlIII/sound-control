@@ -7,6 +7,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App"/>
     <Compile Include="../../Sources/Windows/WinUI/ClipboardStore.cs" Link="ClipboardStore.cs"/>
     <Compile Include="../../Sources/Windows/WinUI/ClipboardSearch.cs" Link="ClipboardSearch.cs"/>
+    <Compile Include="../../Sources/Windows/WinUI/ClipboardPanelNative.cs" Link="ClipboardPanelNative.cs"/>
     <Compile Include="../../Sources/Windows/WinUI/AntigravityBridge.cs" Link="AntigravityBridge.cs"/>
     <Compile Include="../../Sources/Windows/WinUI/AntigravityCli.cs" Link="AntigravityCli.cs"/>
   </ItemGroup>

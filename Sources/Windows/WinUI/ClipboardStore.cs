@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Collections.Concurrent;
 
 namespace SoundControl;
 
@@ -31,12 +32,29 @@ public sealed record ClipboardSettings
 
 public sealed record ClipAttachment(string OriginalName, string RelativePath, long Length, string Sha256);
 public sealed record ClipEntry(string Id, string Kind, DateTimeOffset CreatedAt, string SourceApp,
-    string Preview, string ContentHash, string RelativeDirectory, ClipAttachment[] Attachments, bool Pinned = false)
+    string Preview, string ContentHash, string RelativeDirectory, ClipAttachment[] Attachments, bool Pinned = false, string? ContentFormat = null, string? SourcePath = null)
 {
     public string Label => $"{(Pinned ? "★ " : "")}{Preview}";
     public string Detail => $"{Kind} · {CreatedAt.ToLocalTime():MM-dd HH:mm} · {SourceApp}";
 }
-public sealed record ClipCapture(string Kind, string SourceApp, string? Text = null, byte[]? Image = null, string[]? Files = null);
+public sealed record ClipCapture(string Kind, string SourceApp, string? Text = null, byte[]? Image = null, string[]? Files = null, string? SourcePath = null);
+public sealed record ClipCategory(string Id, string Name);
+public sealed record ClipboardCatalog(ClipCategory[] Categories, Dictionary<string, string[]> Memberships);
+public sealed record ClipboardFilter
+{
+    public string[] Processes { get; init; } = [];
+    public string[] Formats { get; init; } = [];
+    public DateOnly? From { get; init; }
+    public DateOnly? Through { get; init; }
+    public string? CategoryId { get; init; }
+    public bool PinnedOnly { get; init; }
+    internal bool MatchesMetadata(ClipEntry entry)
+    {
+        var day = DateOnly.FromDateTime(entry.CreatedAt.ToLocalTime().DateTime);
+        return (!PinnedOnly || entry.Pinned) && (From is null || day >= From) && (Through is null || day <= Through)
+            && (Processes.Length == 0 || Processes.Contains(entry.SourceApp, StringComparer.OrdinalIgnoreCase));
+    }
+}
 
 // The committed directories are the source of truth; no database is required to recover a history.
 public sealed class ClipboardStore
@@ -44,6 +62,11 @@ public sealed class ClipboardStore
     private readonly SemaphoreSlim gate = new(1);
     private ClipEntry[] entries = [];
     private string? lastHash;
+    private ClipboardCatalog catalog = new([], new());
+    private readonly ConcurrentDictionary<string, string> formats = new();
+    public IReadOnlyList<ClipCategory> Categories => catalog.Categories;
+    public string[] CategoryIds(string entryId) => catalog.Memberships.TryGetValue(entryId, out var ids) ? [.. ids] : [];
+    public bool InCategory(ClipEntry entry, string? categoryId) => categoryId is null || CategoryIds(entry.Id).Contains(categoryId);
     public ClipboardSettings Settings { get; private set; }
     public string Root => Path.GetFullPath(Settings.ArchivePath);
     public IReadOnlyList<ClipEntry> Entries => entries;
@@ -68,13 +91,17 @@ public sealed class ClipboardStore
         return path;
     }
     public string PayloadPath(ClipEntry item, ClipAttachment attachment) => SafePath(Root, Path.Combine(item.RelativeDirectory, attachment.RelativePath));
-    public async Task<ClipEntry[]> FindAsync(string query, CancellationToken token)
+    public Task<ClipEntry[]> FindAsync(string query, CancellationToken token) => FindAsync(query, new ClipboardFilter(), token);
+    public async Task<ClipEntry[]> FindAsync(string query, ClipboardFilter options, CancellationToken token)
     {
-        if (string.IsNullOrEmpty(query)) return entries;
+        if (options.From > options.Through) throw new ArgumentException("시작일은 종료일보다 늦을 수 없습니다.");
         var matches = new List<ClipEntry>();
         foreach (var item in entries)
         {
             token.ThrowIfCancellationRequested();
+            if (!options.MatchesMetadata(item) || !InCategory(item, options.CategoryId)) continue;
+            if (options.Formats.Length > 0 && !options.Formats.Contains(await GetFormatAsync(item, token))) continue;
+            if (string.IsNullOrEmpty(query)) { matches.Add(item); continue; }
             if (item.Preview.Contains(query, StringComparison.OrdinalIgnoreCase) || item.SourceApp.Contains(query, StringComparison.OrdinalIgnoreCase)
                 || item.Attachments.Any(x => x.OriginalName.Contains(query, StringComparison.OrdinalIgnoreCase)))
             { matches.Add(item); continue; }
@@ -94,6 +121,76 @@ public sealed class ClipboardStore
             catch (IOException) { /* A record may have been deleted while filtering. */ }
         }
         return matches.ToArray();
+    }
+    public static string ClassifyText(string text)
+    {
+        string value = text.Trim();
+        return !value.Any(char.IsWhiteSpace) && Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) && uri.Host.Length > 0 ? "Url" : "Text";
+    }
+    public async Task<string> GetFormatAsync(ClipEntry item, CancellationToken token = default)
+    {
+        if (item.Kind != "Text") return item.Kind;
+        if (item.ContentFormat is "Url" or "Text") return item.ContentFormat;
+        if (formats.TryGetValue(item.Id, out string? format)) return format;
+        try
+        {
+            format = ClassifyText(await File.ReadAllTextAsync(PayloadPath(item, item.Attachments[0]), token));
+            formats[item.Id] = format;
+            return format;
+        }
+        catch (IOException) { return "Text"; }
+    }
+    private async Task WriteCatalogAsync(ClipboardCatalog value)
+    {
+        Directory.CreateDirectory(Root);
+        string path = SafePath(Root, "categories.json"), temp = SafePath(Root, "categories.json.tmp");
+        await File.WriteAllTextAsync(temp, JsonSerializer.Serialize(value, Json));
+        File.Move(temp, path, true);
+        catalog = value;
+    }
+    public async Task<ClipCategory> SaveCategoryAsync(string name, string? id = null)
+    {
+        name = name.Trim();
+        if (name.Length is < 1 or > 60) throw new ArgumentException("카테고리 이름을 1~60자로 입력해 주세요.");
+        ClipCategory category;
+        await gate.WaitAsync();
+        try
+        {
+            if (id is not null && !catalog.Categories.Any(x => x.Id == id)) throw new IOException("카테고리가 삭제되었습니다.");
+            if (catalog.Categories.Any(x => x.Id != id && x.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("같은 이름의 카테고리가 있습니다.");
+            category = new(id ?? Guid.NewGuid().ToString("N"), name);
+            var list = id is null ? [.. catalog.Categories, category] : catalog.Categories.Select(x => x.Id == id ? category : x).ToArray();
+            await WriteCatalogAsync(catalog with { Categories = list });
+        }
+        finally { gate.Release(); }
+        Changed?.Invoke();
+        return category;
+    }
+    public async Task DeleteCategoryAsync(string id)
+    {
+        await gate.WaitAsync();
+        try
+        {
+            await WriteCatalogAsync(new(catalog.Categories.Where(x => x.Id != id).ToArray(),
+                catalog.Memberships.ToDictionary(x => x.Key, x => x.Value.Where(value => value != id).ToArray())));
+        }
+        finally { gate.Release(); }
+        Changed?.Invoke();
+    }
+    public async Task SetCategoriesAsync(string entryId, IEnumerable<string> categoryIds)
+    {
+        await gate.WaitAsync();
+        try
+        {
+            if (!entries.Any(x => x.Id == entryId)) throw new IOException("기록이 삭제되었습니다.");
+            var ids = categoryIds.Distinct().ToArray();
+            if (ids.Any(id => !catalog.Categories.Any(x => x.Id == id))) throw new IOException("카테고리가 삭제되었습니다.");
+            var memberships = new Dictionary<string, string[]>(catalog.Memberships) { [entryId] = ids };
+            await WriteCatalogAsync(catalog with { Memberships = memberships });
+        }
+        finally { gate.Release(); }
+        Changed?.Invoke();
     }
     public async Task LoadAsync(CancellationToken token = default)
     {
@@ -127,6 +224,22 @@ public sealed class ClipboardStore
             }
             entries = loaded.OrderByDescending(x => x.CreatedAt).ToArray();
             lastHash = entries.FirstOrDefault()?.ContentHash;
+            formats.Clear();
+            catalog = new([], new());
+            string categoriesPath = SafePath(Root, "categories.json");
+            if (File.Exists(categoriesPath))
+            {
+                try
+                {
+                    var value = JsonSerializer.Deserialize<ClipboardCatalog>(await File.ReadAllTextAsync(categoriesPath, token));
+                    if (value?.Categories is null || value.Memberships is null || value.Categories.Any(x => x is null || string.IsNullOrWhiteSpace(x.Id) || string.IsNullOrWhiteSpace(x.Name))
+                        || value.Categories.Select(x => x.Id).Distinct().Count() != value.Categories.Length || value.Memberships.Any(x => x.Value is null)) throw new JsonException();
+                    catalog = value with { Memberships = value.Memberships.Where(x => entries.Any(e => e.Id == x.Key))
+                        .ToDictionary(x => x.Key, x => x.Value.Where(id => value.Categories.Any(c => c.Id == id)).Distinct().ToArray()) };
+                }
+                catch (Exception error) when (error is JsonException or IOException)
+                { Warning?.Invoke("카테고리 정보를 읽을 수 없습니다. 클립보드 기록은 유지됩니다."); }
+            }
         }
         finally { gate.Release(); }
         Changed?.Invoke();
@@ -193,7 +306,8 @@ public sealed class ClipboardStore
             }
             var contentHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(capture.Kind + "\n" + string.Join("\n", attachments.Select(x => x.OriginalName + ":" + x.Sha256)))));
             if (contentHash == lastHash) return null;
-            var item = new ClipEntry(id, capture.Kind, created, capture.SourceApp, preview[..Math.Min(preview.Length, 240)], contentHash, relative, attachments.ToArray());
+            var item = new ClipEntry(id, capture.Kind, created, capture.SourceApp, preview[..Math.Min(preview.Length, 240)], contentHash, relative, attachments.ToArray(),
+                ContentFormat: capture.Kind == "Text" ? ClassifyText(capture.Text!) : capture.Kind, SourcePath: capture.SourcePath);
             await File.WriteAllTextAsync(Path.Combine(staging, "metadata.json"), JsonSerializer.Serialize(item, Json), token);
             string description = $"# Clipboard {id}\n\nID: {id}\nKind: {item.Kind}\nCopied: {created:O}\nSource: {capture.SourceApp}\n\n";
             description += capture.Kind == "Text" ? capture.Text : string.Join("\n", attachments.Select(x => $"- {x.OriginalName}: {x.RelativePath} ({x.Length} bytes)"));
@@ -242,6 +356,9 @@ public sealed class ClipboardStore
                 SafePath(Root, Path.GetRelativePath(Root, child));
             Directory.Delete(path, true);
             entries = entries.Where(x => x.Id != entry.Id).ToArray(); lastHash = null;
+            formats.TryRemove(entry.Id, out _);
+            if (catalog.Memberships.ContainsKey(entry.Id))
+                await WriteCatalogAsync(catalog with { Memberships = catalog.Memberships.Where(x => x.Key != entry.Id).ToDictionary(x => x.Key, x => x.Value) });
         }
         finally { gate.Release(); }
         Changed?.Invoke();
@@ -276,6 +393,14 @@ public sealed class ClipboardStore
                         if (!(await SHA256.HashDataAsync(a, token)).SequenceEqual(await SHA256.HashDataAsync(b, token)))
                             throw new IOException("저장소 복사 검증에 실패했습니다. 기존 저장소를 유지합니다.");
                     }
+                }
+                string catalogSource = SafePath(Root, "categories.json");
+                if (File.Exists(catalogSource))
+                {
+                    string catalogTarget = SafePath(destination, "categories.json");
+                    File.Copy(catalogSource, catalogTarget, false);
+                    if (!(await File.ReadAllBytesAsync(catalogSource, token)).SequenceEqual(await File.ReadAllBytesAsync(catalogTarget, token)))
+                        throw new IOException("카테고리 복사 검증에 실패했습니다.");
                 }
             }
             token.ThrowIfCancellationRequested();

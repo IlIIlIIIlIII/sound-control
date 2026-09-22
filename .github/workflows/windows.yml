@@ -19,6 +19,8 @@ jobs:
         run: ./Tests/WindowsInstallerTests.ps1
       - name: Antigravity bridge HTTP and subprocess tests
         run: dotnet run --project Tests/AntigravityBridge/AntigravityBridgeTests.csproj -c Release
+      - name: Clipboard archive, filters, collections and search tests
+        run: dotnet run --project Tests/Clipboard/ClipboardTests.csproj -c Release
       - name: Package (unsigned)
         run: cmake --install build --config Release --prefix build/package
       - name: Publish WinUI 3 (self-contained)

@@ -11,12 +11,17 @@ if (args.Contains("--output-format"))
 {
     string prompt = args[Array.IndexOf(args, "-p") + 1];
     if (prompt.Contains("SLOW_FIXTURE")) { await Task.Delay(60000); return; }
+    if (prompt.Contains("DENIED_FIXTURE"))
+    {
+        Console.WriteLine(JsonSerializer.Serialize(new { result = new { status = "SUCCESS", response = "", denied_actions = new[] { new { action = "read" } } } }));
+        return;
+    }
     if (!args.Contains("--json-schema") || !args.Contains("plan") || !args.Contains("--sandbox") || !args.Contains(ClipboardSearch.Model)) { Environment.ExitCode = 9; return; }
     if (!prompt.Contains("untrusted data") || prompt.Contains("CORAL-729")) { Environment.ExitCode = 10; return; }
     var matching = Directory.EnumerateFiles(Environment.CurrentDirectory, "content.txt", SearchOption.AllDirectories)
         .Where(x => File.ReadAllText(x).Contains("CORAL-729")).ToArray();
     string response = JsonSerializer.Serialize(new { answer = "파일에서 확인한 코드: CORAL-729", itemIds = matching.Select(x => Path.GetFileName(Path.GetDirectoryName(x))).ToArray(), limitations = Array.Empty<string>() });
-    Console.WriteLine(JsonSerializer.Serialize(new { result = new { status = "SUCCESS", response } }));
+    Console.WriteLine(JsonSerializer.Serialize(new { result = new { status = "SUCCESS", response = "", structured_output = JsonSerializer.Deserialize<JsonElement>(response) } }));
     return;
 }
 
@@ -84,6 +89,12 @@ var result = await search.SearchClipboardAsync("산호 프로젝트 예약 코�
 Check(result.ItemIds.Contains(text.Id) && result.Answer.Contains("CORAL-729"), live ? "LIVE: agent reads archive files and returns correct ID + content" : "CLI cwd, exact model, read-only arguments, file reading and result mapping");
 if (!live)
 {
+    try { await search.SearchClipboardAsync("DENIED_FIXTURE", default); Check(false, "denied tool produces actionable message"); }
+    catch (InvalidOperationException error) { Check(error.Message.Contains("권한"), "denied tool produces actionable message instead of invalid JSON"); }
+    var emptyScope = await search.SearchClipboardAsync("empty scope", Array.Empty<string>(), default);
+    Check(emptyScope.ItemIds.Length == 0, "empty AI scope returns without invoking bridge");
+    var outsideScope = await search.SearchClipboardAsync("산호 프로젝트", new[] { files.Id }, default);
+    Check(outsideScope.ItemIds.Length == 0 && !outsideScope.Answer.Contains("CORAL-729"), "AI excludes out-of-scope IDs and untrusted summary");
     using var cancel = new CancellationTokenSource(500);
     await Fails(() => search.SearchClipboardAsync("SLOW_FIXTURE", cancel.Token), "search cancellation kills child");
     await bridge.StartAsync(bridgeSettings);
@@ -98,5 +109,31 @@ if (!live)
     await Fails(() => search.SearchClipboardAsync("SLOW_FIXTURE", default), "search timeout");
     result = await search.SearchClipboardAsync("산호 프로젝트 예약 코드를 찾아줘", default);
     Check(result.ItemIds.Contains(text.Id), "slot reusable after timeout");
+    Check(!Directory.EnumerateFiles(store.Root, ".search-*.json").Any(), "search manifests cleaned after success, denial, cancellation and timeout");
 }
+else
+{
+    // Deliberately unrelated and duplicate filenames; answers exist only in copied payloads.
+    string fixtures = Path.Combine(root, "file-search-fixtures");
+    Directory.CreateDirectory(fixtures);
+    string evidence = Path.Combine(fixtures, "notes.txt");
+    await File.WriteAllTextAsync(evidence, new string('가', 9000) + "\n오로라 프로젝트 배포 승인 코드: AURORA-582. 배포 담당자는 김서윤입니다.");
+    var relevant = (await store.SaveAsync(new("Files", "explorer.exe", Files: [evidence])))!;
+    await File.WriteAllTextAsync(evidence, "오로라 프로젝트 관련 회의는 취소되었습니다. 배포 승인 정보는 없습니다.");
+    var decoy = (await store.SaveAsync(new("Files", "explorer.exe", Files: [evidence])))!;
+    string env = Path.Combine(fixtures, ".env.example");
+    await File.WriteAllTextAsync(env, "# Synthetic test data, not credentials\nORBIT_REGION=seoul-test-17\n");
+    var hidden = (await store.SaveAsync(new("Files", "explorer.exe", Files: [env])))!;
+    var manifest = ClipboardSearch.BuildPrompt("파일 내용 검색", [relevant, hidden]);
+    Check(manifest.Contains(".env.example") && manifest.Contains(relevant.Id) && !manifest.Contains("AURORA-582"), "file manifest includes names and IDs without injecting answer payload");
+    result = await search.SearchClipboardAsync("복사한 파일 본문에서 오로라 프로젝트 배포 승인 코드와 담당자를 찾아줘. 이름이 같은 파일도 내용을 구별해줘.", [relevant.Id, decoy.Id, hidden.Id], default);
+    Check(result.ItemIds.SequenceEqual([relevant.Id]) && result.Answer.Contains("AURORA-582") && result.Answer.Contains("김서윤"), "LIVE: file body beyond preview, duplicate filenames and nonmatching decoy");
+    Console.WriteLine("LIVE file body answer: " + result.Answer);
+    result = await search.SearchClipboardAsync(".env.example 파일을 찾아서 ORBIT_REGION 값을 알려줘.", [relevant.Id, hidden.Id], default);
+    Check(result.ItemIds.SequenceEqual([hidden.Id]) && result.Answer.Contains("seoul-test-17"), "LIVE: dot-file original filename and copied attachment content");
+    Console.WriteLine("LIVE dot-file answer: " + result.Answer);
+    result = await search.SearchClipboardAsync("오로라 프로젝트 배포 승인 코드가 들어 있는 파일을 찾아줘.", [decoy.Id], default);
+    Check(result.ItemIds.Length == 0 && !result.Answer.Contains("AURORA-582"), "LIVE: category scope excludes actual match and returns no fabricated match");
+}
+await ClipboardFeatureChecks.RunAsync(root, Check, Fails);
 Console.WriteLine($"{checks} clipboard checks passed. Test archive: {store.Root}");

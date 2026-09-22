@@ -46,11 +46,11 @@ internal sealed class ClipboardController : IAsyncDisposable
         var source = ClipboardNative.SourceApp();
         if (Store.Settings.ExcludedApps.Any(x => Path.GetFileNameWithoutExtension(x).Equals(Path.GetFileNameWithoutExtension(source), StringComparison.OrdinalIgnoreCase))) return;
         uint current = ++generation;
-        var task = CaptureAsync(current, source, ClipboardNative.GetClipboardSequenceNumber());
+        var task = CaptureAsync(current, source, ClipboardNative.GetClipboardSequenceNumber(), ClipboardNative.SourcePath());
         captures.Add(task);
         _ = task.ContinueWith(_ => dispatcher.TryEnqueue(() => captures.Remove(task)), TaskScheduler.Default);
     }
-    private async Task CaptureAsync(uint current, string source, uint sequence)
+    private async Task CaptureAsync(uint current, string source, uint sequence, string? sourcePath)
     {
         try
         {
@@ -86,7 +86,9 @@ internal sealed class ClipboardController : IAsyncDisposable
                         capture = new("Image", source, Image: bytes);
                     }
                     else if (data.Contains(StandardDataFormats.Text)) capture = new("Text", source, Text: await data.GetTextAsync());
+                    else if (data.Contains(StandardDataFormats.WebLink)) capture = new("Text", source, Text: (await data.GetWebLinkAsync()).AbsoluteUri);
                     if (capture is null || current != generation || sequence != ClipboardNative.GetClipboardSequenceNumber()) return;
+                    capture = capture with { SourcePath = sourcePath };
                     await Task.Run(() => Store.SaveAsync(capture, lifetime.Token));
                     return;
                 }

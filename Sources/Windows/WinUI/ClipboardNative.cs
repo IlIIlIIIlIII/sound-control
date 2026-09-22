@@ -35,6 +35,12 @@ internal sealed class ClipboardNative : IDisposable
         try { return id == 0 ? "알 수 없음" : Process.GetProcessById((int)id).ProcessName + ".exe"; }
         catch { return "알 수 없음"; }
     }
+    public static string? SourcePath()
+    {
+        GetWindowThreadProcessId(GetClipboardOwner(), out uint id);
+        try { using var process = Process.GetProcessById((int)id); return process.MainModule?.FileName; }
+        catch { return null; }
+    }
     public static async Task<bool> PasteAsync(nint target)
     {
         if (target == 0 || !IsWindow(target)) return false;

@@ -36,7 +36,11 @@ public sealed partial class MainWindow : Window
         Navigation.SelectedItem = SoundNav;
         clipboard = new ClipboardController(((App)Application.Current).Bridge, DispatcherQueue);
         ClipsPage.Configure(clipboard, this);
-        clipboard.TogglePopup += () => { clipboardPopup ??= new ClipboardPopup(clipboard); clipboardPopup.Toggle(); };
+        clipboard.TogglePopup += () =>
+        {
+            try { clipboardPopup ??= new ClipboardPopup(clipboard); clipboardPopup.Toggle(); }
+            catch (Exception error) { ShowMessage("클립보드를 열지 못했습니다", error.Message, InfoBarSeverity.Error); }
+        };
         ClipsPage.PasteRequested = async item => { await clipboard.CopyAsync(item); ShowMessage("복사했습니다", "원래 앱에 바로 붙여넣으려면 전역 단축키로 클립보드를 여세요.", InfoBarSeverity.Informational); };
         try
         {

@@ -60,7 +60,9 @@ internal static class AntigravityCli
     internal sealed record Reply(string Content, object? Usage);
     internal static async Task<Reply> RunAsync(BridgeSettings settings, BridgeRequest request, Func<string, Task> delta, CancellationToken token, string? workspace = null, string? schema = null)
     {
-        var args = new List<string> { "--output-format", "stream-json", "--sandbox", "--disable-slash-commands", "--print-timeout", settings.TimeoutSeconds + "s" };
+        var args = new List<string> { "--output-format", "stream-json", "--sandbox", "--print-timeout", settings.TimeoutSeconds + "s" };
+        // agy ignores --mode when slash-command expansion is disabled.
+        if (workspace is null) args.Add("--disable-slash-commands");
         if (request.Model != "antigravity") args.AddRange(["--model", request.Model]);
         if (workspace is not null) args.AddRange(["--mode", "plan"]);
         if (schema is not null) args.AddRange(["--json-schema", schema]);
@@ -98,6 +100,13 @@ internal static class AntigravityCli
             if (result is not { } payload || !payload.TryGetProperty("status", out var status) || status.GetString() != "SUCCESS")
                 throw new InvalidOperationException("Antigravity CLI가 성공 결과를 반환하지 않았습니다. 로그인, 사용량 및 권한 요청을 확인해 주세요.");
             string content = payload.TryGetProperty("response", out var response) ? response.GetString() ?? "" : "";
+            if (schema is not null && payload.TryGetProperty("structured_output", out var structured) && structured.ValueKind == JsonValueKind.Object)
+                content = structured.GetRawText();
+            if (string.IsNullOrWhiteSpace(content) && payload.TryGetProperty("denied_actions", out var denied)
+                && denied.ValueKind == JsonValueKind.Array && denied.GetArrayLength() > 0)
+                throw new InvalidOperationException("Antigravity가 파일 검색 도구 권한을 거부했습니다. CLI 권한 설정에서 보관함의 읽기 권한을 확인한 뒤 다시 검색해 주세요.");
+            if (schema is not null && string.IsNullOrWhiteSpace(content))
+                throw new InvalidOperationException("Antigravity가 검색 결과를 반환하지 않았습니다. CLI 상태를 확인한 뒤 다시 검색해 주세요.");
             if (!emitted) await delta(content);
             object? usage = null;
             if (payload.TryGetProperty("usage", out var u))
