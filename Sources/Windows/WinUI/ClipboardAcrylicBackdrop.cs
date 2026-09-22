@@ -3,7 +3,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 // Thin desktop acrylic is intended for transient surfaces. Retain the default
 // XAML configuration so Windows owns theme, activation and accessibility policy.

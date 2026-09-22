@@ -4,8 +4,8 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
-using namespace soundcontrol;
-using namespace soundcontrol::win;
+using namespace personaltools;
+using namespace personaltools::win;
 namespace {
 int failures=0;
 class TestOuter final : public IUnknown {
@@ -33,7 +33,7 @@ Apo* initialize(bool capture) {
 }
 void dllTest() {
     wchar_t path[32768]{}; GetModuleFileNameW(nullptr,path,32768);
-    const auto dll=std::filesystem::path(path).parent_path()/L"SoundControlAPO.dll";
+    const auto dll=std::filesystem::path(path).parent_path()/L"PersonalToolsAPO.dll";
     HMODULE module=LoadLibraryExW(dll.c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32);
     expect(module!=nullptr,"built APO DLL loads with system-only dependency search");
     if(!module)return;

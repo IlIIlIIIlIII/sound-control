@@ -13,7 +13,7 @@
 #include <windows.h>
 #endif
 
-namespace soundcontrol {
+namespace personaltools {
 namespace {
 
 std::string pathText(const std::filesystem::path& path) {
@@ -201,4 +201,4 @@ ParseResult importREWConfigurablePEQFile(const std::filesystem::path& source,
     return parsed;
 }
 
-}  // namespace soundcontrol
+}  // namespace personaltools

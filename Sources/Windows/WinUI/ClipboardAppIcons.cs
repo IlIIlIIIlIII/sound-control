@@ -3,7 +3,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
 using Windows.Storage.FileProperties;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 // Shell thumbnails preserve the application's own icon, including packaged apps.
 internal static class ClipboardAppIcons

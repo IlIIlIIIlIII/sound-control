@@ -3,7 +3,7 @@
 param([string]$AssetDirectory = "$PSScriptRoot\..\Sources\Windows\WinUI\Assets")
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
-$source = [Drawing.Image]::FromFile((Join-Path $AssetDirectory 'SoundControl.png'))
+$source = [Drawing.Image]::FromFile((Join-Path $AssetDirectory 'PersonalTools.png'))
 $sizes = @(16, 24, 32, 48, 64, 128, 256)
 $images = @()
 try {
@@ -18,7 +18,7 @@ try {
             $images += ,$stream.ToArray()
         } finally { $stream.Dispose(); $graphics.Dispose(); $bitmap.Dispose() }
     }
-    $file = [IO.File]::Create((Join-Path $AssetDirectory 'SoundControl.ico'))
+    $file = [IO.File]::Create((Join-Path $AssetDirectory 'PersonalTools.ico'))
     $writer = [IO.BinaryWriter]::new($file)
     try {
         $writer.Write([uint16]0); $writer.Write([uint16]1); $writer.Write([uint16]$sizes.Count)

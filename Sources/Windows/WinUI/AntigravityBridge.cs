@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 public sealed record BridgeSettings(string CliPath, int Port = 8877, string Model = "antigravity", int TimeoutSeconds = 120)
 {

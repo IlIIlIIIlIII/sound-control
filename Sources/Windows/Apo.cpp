@@ -8,7 +8,7 @@
 #include <new>
 #include <atomic>
 
-namespace soundcontrol::win {
+namespace personaltools::win {
 namespace {
 std::atomic<long> objects{0}, serverLocks{0};
 // Bounded diagnostics on the control thread only; never call from APOProcess.
@@ -123,8 +123,8 @@ APO_REG_PROPERTIES properties(bool capture) {
     p.clsid=capture?aecClass:eqClass;
     p.Flags=static_cast<APO_FLAG>((capture?0:APO_FLAG_INPLACE)|APO_FLAG_FRAMESPERSECOND_MUST_MATCH|
         APO_FLAG_BITSPERSAMPLE_MUST_MATCH|(capture?0:APO_FLAG_SAMPLESPERFRAME_MUST_MATCH));
-    wcscpy_s(p.szFriendlyName,capture?L"SoundControl microphone echo cancellation":L"SoundControl stereo EQ");
-    wcscpy_s(p.szCopyrightInfo,L"SoundControl");
+    wcscpy_s(p.szFriendlyName,capture?L"PersonalTools microphone echo cancellation":L"PersonalTools stereo EQ");
+    wcscpy_s(p.szCopyrightInfo,L"PersonalTools");
     p.u32MajorVersion=1;
     p.u32MinInputConnections=p.u32MaxInputConnections=p.u32MinOutputConnections=p.u32MaxOutputConnections=1;
     p.u32MaxInstances=UINT_MAX;
@@ -508,7 +508,7 @@ private:
 }
 }
 extern "C" HRESULT __stdcall DllGetClassObject(REFCLSID clsid,REFIID iid,void** out) {
-    using namespace soundcontrol::win;
+    using namespace personaltools::win;
     if(!out)return E_POINTER;*out=nullptr;
     if(clsid!=eqClass&&clsid!=aecClass)return CLASS_E_CLASSNOTAVAILABLE;
     lifecycle(clsid==aecClass,"DllGetClassObject");
@@ -518,5 +518,5 @@ extern "C" HRESULT __stdcall DllGetClassObject(REFCLSID clsid,REFIID iid,void** 
     factory->Release();return hr;
 }
 extern "C" HRESULT __stdcall DllCanUnloadNow() {
-    return soundcontrol::win::objects.load()==0&&soundcontrol::win::serverLocks.load()==0?S_OK:S_FALSE;
+    return personaltools::win::objects.load()==0&&personaltools::win::serverLocks.load()==0?S_OK:S_FALSE;
 }

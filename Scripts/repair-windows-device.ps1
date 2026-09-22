@@ -5,7 +5,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'WindowsInstall.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'WindowsDeviceRecovery.psm1') -Force
-$directory = Join-Path $env:ProgramFiles 'SoundControl'
+$directory = Join-Path $env:ProgramFiles 'PersonalTools'
 $backupPath = Join-Path $directory 'installation-backup.clixml'
 $statusPath = Join-Path $directory 'device-recovery-status.txt'
 if (-not $CheckOnly) { Assert-Administrator }
@@ -50,7 +50,7 @@ try {
         Save-RecoveryBackup $backup $backupPath
     }
     foreach ($change in $changes) { Set-RegistryValue $change.Path $change.Name $change.Kind $change.Value }
-    $process = Start-Process -FilePath (Join-Path $directory 'SoundControlSetup.exe') -ArgumentList @('--rebind-render', $backup.RecoveryPending.Previous, $target, $backup.CaptureId) -WindowStyle Hidden -Wait -PassThru
+    $process = Start-Process -FilePath (Join-Path $directory 'PersonalToolsSetup.exe') -ArgumentList @('--rebind-render', $backup.RecoveryPending.Previous, $target, $backup.CaptureId) -WindowStyle Hidden -Wait -PassThru
     if ($process.ExitCode -ne 0) { throw "Settings rebind failed ($($process.ExitCode)); recovery retained for retry/uninstall." }
     # Rebuild the graph after changing the endpoint and reference mapping.
     Restart-Service Audiosrv -Force

@@ -3,10 +3,12 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
-    <RootNamespace>SoundControl</RootNamespace>
-    <AssemblyName>SoundControlWindows</AssemblyName>
+    <RootNamespace>PersonalTools</RootNamespace>
+    <AssemblyName>PersonalToolsWindows</AssemblyName>
+    <Product>Personal Tools</Product>
+    <Title>Personal Tools</Title>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Assets/SoundControl.ico</ApplicationIcon>
+    <ApplicationIcon>Assets/PersonalTools.ico</ApplicationIcon>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -24,8 +26,8 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <Content Update="Assets/SoundControl.png" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="Assets/SoundControl.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Update="Assets/PersonalTools.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets/PersonalTools.ico" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260804001" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.6584" />
   </ItemGroup>

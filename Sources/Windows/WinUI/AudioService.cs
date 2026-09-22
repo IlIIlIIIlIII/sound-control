@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
-namespace SoundControl;
+namespace PersonalTools;
 public sealed record AudioDevice(string Id, string Name)
 {
     public override string ToString() => Name;
@@ -63,10 +63,10 @@ internal sealed class AudioService : IDisposable
     {
         lock (gate) { if (handle != 0) MT_Destroy(handle); handle = 0; }
     }
-    [DllImport("SoundControlBridge.dll", CallingConvention = CallingConvention.Cdecl)] private static extern nint MT_Create();
-    [DllImport("SoundControlBridge.dll", CallingConvention = CallingConvention.Cdecl)] private static extern void MT_Destroy(nint handle);
-    [DllImport("SoundControlBridge.dll", CallingConvention = CallingConvention.Cdecl)] private static extern nint MT_Snapshot(nint handle);
-    [DllImport("SoundControlBridge.dll", CallingConvention = CallingConvention.Cdecl)] private static extern nint MT_SetEnabled(nint handle, int eq, int aec);
-    [DllImport("SoundControlBridge.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+    [DllImport("PersonalToolsBridge.dll", CallingConvention = CallingConvention.Cdecl)] private static extern nint MT_Create();
+    [DllImport("PersonalToolsBridge.dll", CallingConvention = CallingConvention.Cdecl)] private static extern void MT_Destroy(nint handle);
+    [DllImport("PersonalToolsBridge.dll", CallingConvention = CallingConvention.Cdecl)] private static extern nint MT_Snapshot(nint handle);
+    [DllImport("PersonalToolsBridge.dll", CallingConvention = CallingConvention.Cdecl)] private static extern nint MT_SetEnabled(nint handle, int eq, int aec);
+    [DllImport("PersonalToolsBridge.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
     private static extern nint MT_Import(nint handle, int channel, string path);
 }

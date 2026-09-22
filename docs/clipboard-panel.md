@@ -70,7 +70,7 @@ filter combinations/local date boundaries, category persistence/relocation,
 scoped AI result validation, cancellation, and panel placement at different DPI
 and negative monitor origins. These tests also run in Windows CI.
 
-Build with `dotnet build Sources/Windows/WinUI/SoundControlWindows.csproj -c Release -p:Platform=x64`.
+Build with `dotnet build Sources/Windows/WinUI/PersonalToolsWindows.csproj -c Release -p:Platform=x64`.
 
 Manual regression scenarios:
 

@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 internal readonly record struct ClipboardPanelBounds(int X, int Y, int Width, int Height)
 {

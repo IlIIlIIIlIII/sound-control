@@ -5,13 +5,13 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>ko</string>
     <key>CFBundleExecutable</key>
-    <string>SoundControlMic</string>
+    <string>PersonalToolsMic</string>
     <key>CFBundleIdentifier</key>
-    <string>io.griplabs.soundcontrol.mic.driver</string>
+    <string>io.griplabs.personaltools.mic.driver</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>SoundControl Mic</string>
+    <string>PersonalTools Mic</string>
     <key>CFBundlePackageType</key>
     <string>BNDL</string>
     <key>CFBundleShortVersionString</key>
@@ -21,7 +21,7 @@
     <key>CFPlugInFactories</key>
     <dict>
         <key>83A4E8CB-C37C-460A-8C38-3AC07D5C79A0</key>
-        <string>SoundControlMic_Create</string>
+        <string>PersonalToolsMic_Create</string>
     </dict>
     <key>CFPlugInTypes</key>
     <dict>

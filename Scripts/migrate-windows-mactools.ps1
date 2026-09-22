@@ -6,12 +6,12 @@ Import-Module (Join-Path $PSScriptRoot 'WindowsInstall.psm1') -Force
 Assert-Administrator
 $source = (Resolve-Path -LiteralPath $SourceDirectory).Path
 $old = Join-Path $env:ProgramFiles 'MacTools'
-$target = Join-Path $env:ProgramFiles 'SoundControl'
-$data = Join-Path $env:ProgramData 'SoundControl'
+$target = Join-Path $env:ProgramFiles 'PersonalTools'
+$data = Join-Path $env:ProgramData 'PersonalTools'
 $oldData = Join-Path $env:ProgramData 'MacTools'
 $backup = Import-Clixml (Join-Path $old 'installation-backup.clixml')
 if ($backup.Version -ne 1) { throw 'Unsupported installation backup.' }
-if (Test-Path (Join-Path $target 'installation-backup.clixml')) { throw 'SoundControl is already installed.' }
+if (Test-Path (Join-Path $target 'installation-backup.clixml')) { throw 'PersonalTools is already installed.' }
 $changes = @()
 foreach ($suffix in '01','02') {
     $id = '{4538BFC1-CCED-4C3D-A981-895A737112' + $suffix + '}'
@@ -19,7 +19,7 @@ foreach ($suffix in '01','02') {
     if ((Get-Item $path).GetValue('') -ne (Join-Path $old 'MacToolsAPO.dll')) { throw "Unexpected APO owner: $id" }
     $changes += Save-RegistryValue $path ''
 }
-foreach ($name in 'SoundControlAPO.dll','SoundControlSetup.exe','ui\SoundControlBridge.dll','ui\SoundControlWindows.exe','ui\SoundControlWindows.dll','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1') {
+foreach ($name in 'PersonalToolsAPO.dll','PersonalToolsSetup.exe','ui\PersonalToolsBridge.dll','ui\PersonalToolsWindows.exe','ui\PersonalToolsWindows.dll','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1') {
     if (!(Test-Path (Join-Path $source $name))) { throw "Missing payload: $name" }
 }
 $state = [IO.File]::ReadAllBytes((Join-Path $oldData 'state-v1.bin'))
@@ -30,8 +30,8 @@ New-Item -ItemType Directory -Path $recovery | Out-Null
 $changes | Export-Clixml (Join-Path $recovery 'registry.clixml')
 Copy-Item -LiteralPath (Join-Path $old 'installation-backup.clixml') -Destination $recovery
 Copy-Item -LiteralPath $oldData -Destination (Join-Path $recovery 'MacTools-data') -Recurse
-if (Test-Path $data) { Copy-Item -LiteralPath $data -Destination (Join-Path $recovery 'SoundControl-data') -Recurse }
-foreach ($name in 'SoundControlAPO.dll','SoundControlSetup.exe','ui','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1') {
+if (Test-Path $data) { Copy-Item -LiteralPath $data -Destination (Join-Path $recovery 'PersonalTools-data') -Recurse }
+foreach ($name in 'PersonalToolsAPO.dll','PersonalToolsSetup.exe','ui','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1') {
     Copy-Item -LiteralPath (Join-Path $source $name) -Destination $target -Recurse -Force
 }
 if (Test-Path (Join-Path $old 'npu')) { Copy-Item -LiteralPath (Join-Path $old 'npu') -Destination $target -Recurse -Force }
@@ -47,7 +47,7 @@ try {
     # Keep endpoint modes and protected-audio policy exactly as installed.
     # Carry forward the original pre-install backup for eventual uninstall.
     Copy-Item -LiteralPath (Join-Path $old 'installation-backup.clixml') -Destination (Join-Path $target 'installation-backup.clixml')
-    foreach ($entry in $changes) { Set-RegistryValue $entry.Path '' 'String' (Join-Path $target 'SoundControlAPO.dll') }
+    foreach ($entry in $changes) { Set-RegistryValue $entry.Path '' 'String' (Join-Path $target 'PersonalToolsAPO.dll') }
 } catch {
     Restore-RegistryValues $changes
     if (Test-Path (Join-Path $target 'installation-backup.clixml')) { Remove-Item -LiteralPath (Join-Path $target 'installation-backup.clixml') }

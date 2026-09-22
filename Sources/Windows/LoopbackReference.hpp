@@ -6,7 +6,7 @@
 #include <thread>
 #include <atomic>
 
-namespace soundcontrol::win {
+namespace personaltools::win {
 // Runs in the desktop app, never in audiodg. Windows performs the resampling
 // from the selected speaker's native rate to the AEC's 48 kHz reference rate.
 class LoopbackReference {

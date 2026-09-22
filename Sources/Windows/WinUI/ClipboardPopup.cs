@@ -5,7 +5,7 @@ using Microsoft.UI.Xaml;
 using WinRT.Interop;
 using Windows.Graphics;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 internal sealed class ClipboardPopup : Window
 {

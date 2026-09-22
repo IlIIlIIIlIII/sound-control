@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>io.griplabs.soundcontrol.engine</string>
+    <string>io.griplabs.personaltools.engine</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/sunggu/Library/Application Support/SoundControl/SoundControlEngine.app/Contents/MacOS/SoundControlEngine</string>
+        <string>/Users/sunggu/Library/Application Support/PersonalTools/PersonalToolsEngine.app/Contents/MacOS/PersonalToolsEngine</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -15,8 +15,8 @@
     <key>ProcessType</key>
     <string>Interactive</string>
     <key>StandardOutPath</key>
-    <string>/tmp/io.griplabs.soundcontrol.engine.log</string>
+    <string>/tmp/io.griplabs.personaltools.engine.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/io.griplabs.soundcontrol.engine.log</string>
+    <string>/tmp/io.griplabs.personaltools.engine.log</string>
 </dict>
 </plist>

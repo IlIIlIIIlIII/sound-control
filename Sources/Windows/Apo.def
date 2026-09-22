@@ -1,4 +1,4 @@
-LIBRARY SoundControlAPO
+LIBRARY PersonalToolsAPO
 EXPORTS
     DllGetClassObject PRIVATE
     DllCanUnloadNow PRIVATE

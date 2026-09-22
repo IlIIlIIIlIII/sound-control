@@ -1,11 +1,11 @@
-# Switch an existing SoundControl MFX binding to the explicit legacy path.
+# Switch an existing PersonalTools MFX binding to the explicit legacy path.
 # Keep the original uninstall backup and all EQ/settings files intact.
 [CmdletBinding()]
 param([switch]$CheckOnly)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'WindowsInstall.psm1') -Force
-$directory = Join-Path $env:ProgramFiles 'SoundControl'
+$directory = Join-Path $env:ProgramFiles 'PersonalTools'
 $backupPath = Join-Path $directory 'installation-backup.clixml'
 $backup = Import-Clixml -LiteralPath $backupPath
 if ($backup.Version -ne 1) { throw 'Unsupported installation backup.' }
@@ -24,10 +24,10 @@ try {
     if ($key.GetValue("$fx,1") -eq $aec -and -not $key.GetValue("$fx,6")) {
         Write-Output 'Legacy capture is already registered.'; return
     }
-    if ($key.GetValue("$fx,6") -ne $aec) { throw 'Expected the installed SoundControl MFX binding.' }
+    if ($key.GetValue("$fx,6") -ne $aec) { throw 'Expected the installed PersonalTools MFX binding.' }
 } finally { $key.Close() }
 if ($CheckOnly) {
-    Write-Output "Would move SoundControl capture $($backup.CaptureId) from MFX to LFX and restart Windows Audio."
+    Write-Output "Would move PersonalTools capture $($backup.CaptureId) from MFX to LFX and restart Windows Audio."
     return
 }
 Assert-Administrator

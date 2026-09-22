@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 internal sealed class ClipboardNative : IDisposable
 {

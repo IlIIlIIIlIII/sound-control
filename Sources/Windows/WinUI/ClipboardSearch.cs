@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 public sealed record ClipboardSearchResult(string Answer, string[] ItemIds, string[] Limitations);
 public sealed class ClipboardSearch(AntigravityBridge bridge, ClipboardStore store, Func<BridgeSettings> settings)

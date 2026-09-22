@@ -4,7 +4,7 @@
 #include <cmath>
 #include <utility>
 
-namespace soundcontrol {
+namespace personaltools {
 
 void EchoDelayMonitor::push(const float* mic, const float* left, const float* right,
                            unsigned frames, bool referenceAvailable) {
@@ -187,4 +187,4 @@ void MicRateRecovery::cancel() {
     io_ = {};
 }
 
-} // namespace soundcontrol
+} // namespace personaltools

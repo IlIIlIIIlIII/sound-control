@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-using namespace soundcontrol;
+using namespace personaltools;
 static int failures = 0;
 static void expect(bool ok, const char* message) {
     if (!ok) { std::cerr << "FAIL: " << message << '\n'; ++failures; }

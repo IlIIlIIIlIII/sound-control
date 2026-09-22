@@ -8,7 +8,7 @@ using Windows.Storage.Pickers;
 using Windows.System;
 using WinRT.Interop;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 public sealed record ClipboardCard(ClipEntry Entry, string Format)
 {

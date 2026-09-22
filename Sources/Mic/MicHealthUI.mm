@@ -2,7 +2,7 @@
 
 NSString *MSMicHealthPath(void) {
     return [NSHomeDirectory() stringByAppendingPathComponent:
-        @"Library/Application Support/SoundControl/mic-health.json"];
+        @"Library/Application Support/PersonalTools/mic-health.json"];
 }
 
 NSDictionary *MSLoadMicHealth(void) {

@@ -3,20 +3,20 @@ set -euo pipefail
 
 if [[ "${1:-}" != "--confirm-system-change" ]]; then
   echo "Usage: $0 --confirm-system-change"
-  echo "Installs SoundControl.app and its one-channel virtual microphone, then starts the user engine."
+  echo "Installs PersonalTools.app and its one-channel virtual microphone, then starts the user engine."
   exit 2
 fi
 
 repo_dir="${0:A:h:h}"
-app_source="${repo_dir}/build/SoundControl.app"
-engine_source="${app_source}/Contents/Helpers/SoundControlEngine.app"
-mic_driver_source="${app_source}/Contents/Resources/SoundControlMic.driver"
-mic_driver_target="/Library/Audio/Plug-Ins/HAL/SoundControlMic.driver"
-launch_agent_source="${repo_dir}/Resources/io.griplabs.soundcontrol.engine.plist"
-launch_agent_target="/Users/sunggu/Library/LaunchAgents/io.griplabs.soundcontrol.engine.plist"
-app_target="/Users/sunggu/Applications/SoundControl.app"
-settings_target="/Users/sunggu/Library/Application Support/SoundControl"
-engine_target="${settings_target}/SoundControlEngine.app"
+app_source="${repo_dir}/build/PersonalTools.app"
+engine_source="${app_source}/Contents/Helpers/PersonalToolsEngine.app"
+mic_driver_source="${app_source}/Contents/Resources/PersonalToolsMic.driver"
+mic_driver_target="/Library/Audio/Plug-Ins/HAL/PersonalToolsMic.driver"
+launch_agent_source="${repo_dir}/Resources/io.griplabs.personaltools.engine.plist"
+launch_agent_target="/Users/sunggu/Library/LaunchAgents/io.griplabs.personaltools.engine.plist"
+app_target="/Users/sunggu/Applications/PersonalTools.app"
+settings_target="/Users/sunggu/Library/Application Support/PersonalTools"
+engine_target="${settings_target}/PersonalToolsEngine.app"
 
 if [[ ! -d "${app_source}" || ! -d "${mic_driver_source}" ]]; then
   echo "Release app not found. Run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build"
@@ -24,22 +24,22 @@ if [[ ! -d "${app_source}" || ! -d "${mic_driver_source}" ]]; then
 fi
 /usr/bin/codesign --verify --deep --strict "${engine_source}"
 if ! /usr/bin/codesign -d -r- "${engine_source}" 2>&1 | \
-    /usr/bin/grep -q 'identifier "io.griplabs.soundcontrol.engine"'; then
-  echo "Signed SoundControlEngine helper not found. Rebuild SoundControlPackage before installing."
+    /usr/bin/grep -q 'identifier "io.griplabs.personaltools.engine"'; then
+  echo "Signed PersonalToolsEngine helper not found. Rebuild PersonalToolsPackage before installing."
   exit 1
 fi
 
 mkdir -p /Users/sunggu/Applications
 launchctl bootout gui/"$(id -u)" "${launch_agent_target}" 2>/dev/null || true
 for _attempt in {1..30}; do
-  if ! pgrep -x SoundControlEngine >/dev/null 2>&1; then
+  if ! pgrep -x PersonalToolsEngine >/dev/null 2>&1; then
     break
   fi
   sleep 0.1
 done
-pkill -9 -x SoundControlEngine 2>/dev/null || true
-pkill -x SoundControlEngine 2>/dev/null || true
-pkill -x SoundControl 2>/dev/null || true
+pkill -9 -x PersonalToolsEngine 2>/dev/null || true
+pkill -x PersonalToolsEngine 2>/dev/null || true
+pkill -x PersonalTools 2>/dev/null || true
 rm -rf "${app_target}"
 ditto "${app_source}" "${app_target}"
 rm -rf "${engine_target}"
@@ -52,7 +52,7 @@ sudo chown -R root:wheel "${mic_driver_target}"
 sudo chmod -R go-w "${mic_driver_target}"
 sudo killall -9 coreaudiod audiomxd audioaccessoryd 2>/dev/null || true
 sleep 2
-launchctl enable gui/"$(id -u)"/io.griplabs.soundcontrol.engine
+launchctl enable gui/"$(id -u)"/io.griplabs.personaltools.engine
 launchctl bootstrap gui/"$(id -u)" "${launch_agent_target}"
 /usr/bin/killall ControlCenter 2>/dev/null || true
-echo "Installed. SoundControl keeps the selected direct output, exposes M2 input 1, enables speaker echo cancellation, and keeps display shortcuts active."
+echo "Installed. PersonalTools keeps the selected direct output, exposes M2 input 1, enables speaker echo cancellation, and keeps display shortcuts active."

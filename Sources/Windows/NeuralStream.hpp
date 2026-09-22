@@ -5,7 +5,7 @@
 #include <thread>
 #include <bit>
 
-namespace soundcontrol::win {
+namespace personaltools::win {
 // A missing result has no wet sample to crossfade from. Retain the last valid
 // value during the short transition; substituting dry here bypasses the ramp.
 class NeuralOutputMixer {

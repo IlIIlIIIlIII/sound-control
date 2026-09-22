@@ -3,7 +3,7 @@
 #include <bit>
 #include <aclapi.h>
 
-namespace soundcontrol::win {
+namespace personaltools::win {
 // Bounded, pagefile-backed IPC. No microphone samples enter this mapping.
 // The audio service creates it; the desktop app only opens an existing mapping.
 // Reuse the installed settings DACL rather than granting access to all users.
@@ -24,9 +24,10 @@ public:
     static std::wstring name(const Configuration& c) {
         std::uint64_t hash=14695981039346656037ull;
         for(const auto* id:{c.renderId,c.captureId})for(const auto* p=id;*p;++p){hash^=static_cast<unsigned>(*p);hash*=1099511628211ull;}
-#ifdef SOUNDCONTROL_TESTING
-        return L"Local\\SoundControlReference-test-"+std::to_wstring(GetCurrentProcessId())+L"-"+std::to_wstring(hash);
+#ifdef PERSONALTOOLS_TESTING
+        return L"Local\\PersonalToolsReference-test-"+std::to_wstring(GetCurrentProcessId())+L"-"+std::to_wstring(hash);
 #else
+        // Versioned IPC ABI shared with already-installed audio processors.
         return L"Global\\SoundControlReference-v1-"+std::to_wstring(hash);
 #endif
     }

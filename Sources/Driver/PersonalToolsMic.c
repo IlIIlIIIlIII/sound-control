@@ -9,23 +9,23 @@
 // stream while retaining Apple's required object/property plumbing.
 #include "NullAudio.c"
 
-#define MS_MIC_DEVICE_UID "io.griplabs.soundcontrol.mic.device"
-#define MS_MIC_MODEL_UID "io.griplabs.soundcontrol.mic.model"
+#define MS_MIC_DEVICE_UID "io.griplabs.personaltools.mic.device"
+#define MS_MIC_MODEL_UID "io.griplabs.personaltools.mic.model"
 
-static MSMicSharedMemory *gSoundControlMicShared = NULL;
-static bool gSoundControlMicPrimed = false;
-static uint32_t gSoundControlMicPresent = 0;
-static dispatch_source_t gSoundControlMicPresenceTimer = NULL;
-static Float64 gSoundControlMicLastZeroSampleTime = -1.0;
-static UInt64 gSoundControlMicTimestampSeed = 1u;
+static MSMicSharedMemory *gPersonalToolsMicShared = NULL;
+static bool gPersonalToolsMicPrimed = false;
+static uint32_t gPersonalToolsMicPresent = 0;
+static dispatch_source_t gPersonalToolsMicPresenceTimer = NULL;
+static Float64 gPersonalToolsMicLastZeroSampleTime = -1.0;
+static UInt64 gPersonalToolsMicTimestampSeed = 1u;
 
-static bool SoundControlMic_IsPresent(void) {
-    return __atomic_load_n(&gSoundControlMicPresent, __ATOMIC_ACQUIRE) != 0u;
+static bool PersonalToolsMic_IsPresent(void) {
+    return __atomic_load_n(&gPersonalToolsMicPresent, __ATOMIC_ACQUIRE) != 0u;
 }
 
-static void SoundControlMic_SetPresent(bool present) {
+static void PersonalToolsMic_SetPresent(bool present) {
     const uint32_t value = present ? 1u : 0u;
-    const uint32_t previous = __atomic_exchange_n(&gSoundControlMicPresent, value, __ATOMIC_ACQ_REL);
+    const uint32_t previous = __atomic_exchange_n(&gPersonalToolsMicPresent, value, __ATOMIC_ACQ_REL);
     if (previous == value || !gPlugIn_Host) return;
 
     const AudioObjectPropertyAddress alive = {
@@ -44,43 +44,43 @@ static void SoundControlMic_SetPresent(bool present) {
     gPlugIn_Host->PropertiesChanged(gPlugIn_Host, kObjectID_PlugIn, 2, plugInProperties);
 }
 
-static void SoundControlMic_StartPresenceMonitor(void) {
-    if (gSoundControlMicPresenceTimer) return;
-    gSoundControlMicPresenceTimer = dispatch_source_create(
+static void PersonalToolsMic_StartPresenceMonitor(void) {
+    if (gPersonalToolsMicPresenceTimer) return;
+    gPersonalToolsMicPresenceTimer = dispatch_source_create(
         DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
         dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
-    if (!gSoundControlMicPresenceTimer) return;
+    if (!gPersonalToolsMicPresenceTimer) return;
 
-    __block uint64_t lastSequence = MSMicSourceSequence(gSoundControlMicShared);
+    __block uint64_t lastSequence = MSMicSourceSequence(gPersonalToolsMicShared);
     __block unsigned staleTicks = 0;
-    dispatch_source_set_timer(gSoundControlMicPresenceTimer,
+    dispatch_source_set_timer(gPersonalToolsMicPresenceTimer,
                               dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC),
                               250 * NSEC_PER_MSEC,
                               25 * NSEC_PER_MSEC);
-    dispatch_source_set_event_handler(gSoundControlMicPresenceTimer, ^{
-        const uint64_t sequence = MSMicSourceSequence(gSoundControlMicShared);
-        const bool online = MSMicEngineOnline(gSoundControlMicShared);
+    dispatch_source_set_event_handler(gPersonalToolsMicPresenceTimer, ^{
+        const uint64_t sequence = MSMicSourceSequence(gPersonalToolsMicShared);
+        const bool online = MSMicEngineOnline(gPersonalToolsMicShared);
         if (online && sequence != 0u && sequence != lastSequence) {
             lastSequence = sequence;
             staleTicks = 0;
-            SoundControlMic_SetPresent(true);
+            PersonalToolsMic_SetPresent(true);
         } else if (!online || ++staleTicks >= 12u) {
-            SoundControlMic_SetPresent(false);
+            PersonalToolsMic_SetPresent(false);
         }
     });
-    dispatch_resume(gSoundControlMicPresenceTimer);
+    dispatch_resume(gPersonalToolsMicPresenceTimer);
 }
 
-static OSStatus SoundControlMic_Initialize(AudioServerPlugInDriverRef driver,
+static OSStatus PersonalToolsMic_Initialize(AudioServerPlugInDriverRef driver,
                                       AudioServerPlugInHostRef host) {
     gDevice_SampleRate = 48000.0;
     const OSStatus status = NullAudio_Initialize(driver, host);
-    gSoundControlMicShared = MSMicOpenSharedMemory();
-    SoundControlMic_StartPresenceMonitor();
+    gPersonalToolsMicShared = MSMicOpenSharedMemory();
+    PersonalToolsMic_StartPresenceMonitor();
     return status;
 }
 
-static Boolean SoundControlMic_HasProperty(AudioServerPlugInDriverRef driver,
+static Boolean PersonalToolsMic_HasProperty(AudioServerPlugInDriverRef driver,
                                        AudioObjectID objectID,
                                        pid_t clientPID,
                                        const AudioObjectPropertyAddress *address) {
@@ -102,13 +102,13 @@ static Boolean SoundControlMic_HasProperty(AudioServerPlugInDriverRef driver,
     return NullAudio_HasProperty(driver, objectID, clientPID, address);
 }
 
-static OSStatus SoundControlMic_IsPropertySettable(AudioServerPlugInDriverRef driver,
+static OSStatus PersonalToolsMic_IsPropertySettable(AudioServerPlugInDriverRef driver,
                                                AudioObjectID objectID,
                                                pid_t clientPID,
                                                const AudioObjectPropertyAddress *address,
                                                Boolean *settable) {
     if (!address || !settable) return kAudioHardwareIllegalOperationError;
-    if (!SoundControlMic_HasProperty(driver, objectID, clientPID, address)) {
+    if (!PersonalToolsMic_HasProperty(driver, objectID, clientPID, address)) {
         return kAudioHardwareUnknownPropertyError;
     }
     if ((objectID == kObjectID_Device &&
@@ -122,7 +122,7 @@ static OSStatus SoundControlMic_IsPropertySettable(AudioServerPlugInDriverRef dr
     return NullAudio_IsPropertySettable(driver, objectID, clientPID, address, settable);
 }
 
-static OSStatus SoundControlMic_GetPropertyDataSize(AudioServerPlugInDriverRef driver,
+static OSStatus PersonalToolsMic_GetPropertyDataSize(AudioServerPlugInDriverRef driver,
                                                 AudioObjectID objectID,
                                                 pid_t clientPID,
                                                 const AudioObjectPropertyAddress *address,
@@ -130,14 +130,14 @@ static OSStatus SoundControlMic_GetPropertyDataSize(AudioServerPlugInDriverRef d
                                                 const void *qualifier,
                                                 UInt32 *dataSize) {
     if (!address || !dataSize) return kAudioHardwareIllegalOperationError;
-    if (!SoundControlMic_HasProperty(driver, objectID, clientPID, address)) {
+    if (!PersonalToolsMic_HasProperty(driver, objectID, clientPID, address)) {
         return kAudioHardwareUnknownPropertyError;
     }
     if (objectID == kObjectID_PlugIn) {
         switch (address->mSelector) {
             case kAudioObjectPropertyOwnedObjects:
             case kAudioPlugInPropertyDeviceList:
-                *dataSize = SoundControlMic_IsPresent() ? sizeof(AudioObjectID) : 0;
+                *dataSize = PersonalToolsMic_IsPresent() ? sizeof(AudioObjectID) : 0;
                 return noErr;
             case kAudioPlugInPropertyBoxList:
                 *dataSize = 0;
@@ -172,7 +172,7 @@ static OSStatus SoundControlMic_GetPropertyDataSize(AudioServerPlugInDriverRef d
                                          qualifierSize, qualifier, dataSize);
 }
 
-static OSStatus SoundControlMic_Put(UInt32 required, UInt32 supplied, UInt32 *written,
+static OSStatus PersonalToolsMic_Put(UInt32 required, UInt32 supplied, UInt32 *written,
                                void *destination, const void *source) {
     if (!written || !destination || supplied < required) return kAudioHardwareBadPropertySizeError;
     memcpy(destination, source, required);
@@ -180,7 +180,7 @@ static OSStatus SoundControlMic_Put(UInt32 required, UInt32 supplied, UInt32 *wr
     return noErr;
 }
 
-static AudioStreamBasicDescription SoundControlMic_Format(void) {
+static AudioStreamBasicDescription PersonalToolsMic_Format(void) {
     AudioStreamBasicDescription format = {0};
     format.mSampleRate = 48000.0;
     format.mFormatID = kAudioFormatLinearPCM;
@@ -193,7 +193,7 @@ static AudioStreamBasicDescription SoundControlMic_Format(void) {
     return format;
 }
 
-static OSStatus SoundControlMic_GetPropertyData(AudioServerPlugInDriverRef driver,
+static OSStatus PersonalToolsMic_GetPropertyData(AudioServerPlugInDriverRef driver,
                                             AudioObjectID objectID,
                                             pid_t clientPID,
                                             const AudioObjectPropertyAddress *address,
@@ -203,23 +203,23 @@ static OSStatus SoundControlMic_GetPropertyData(AudioServerPlugInDriverRef drive
                                             UInt32 *written,
                                             void *data) {
     if (!address || !written || !data) return kAudioHardwareIllegalOperationError;
-    if (!SoundControlMic_HasProperty(driver, objectID, clientPID, address)) {
+    if (!PersonalToolsMic_HasProperty(driver, objectID, clientPID, address)) {
         return kAudioHardwareUnknownPropertyError;
     }
     if (objectID == kObjectID_PlugIn) {
         switch (address->mSelector) {
             case kAudioObjectPropertyManufacturer: {
-                CFStringRef value = CFSTR("SoundControl");
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                CFStringRef value = CFSTR("PersonalTools");
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioObjectPropertyOwnedObjects:
             case kAudioPlugInPropertyDeviceList: {
-                if (!SoundControlMic_IsPresent()) {
+                if (!PersonalToolsMic_IsPresent()) {
                     *written = 0;
                     return noErr;
                 }
                 const AudioObjectID value = kObjectID_Device;
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioPlugInPropertyBoxList:
                 *written = 0;
@@ -229,10 +229,10 @@ static OSStatus SoundControlMic_GetPropertyData(AudioServerPlugInDriverRef drive
                     return kAudioHardwareBadPropertySizeError;
                 }
                 const CFStringRef uid = *(const CFStringRef *)qualifier;
-                const AudioObjectID value = SoundControlMic_IsPresent() && uid &&
+                const AudioObjectID value = PersonalToolsMic_IsPresent() && uid &&
                     CFStringCompare(uid, CFSTR(MS_MIC_DEVICE_UID), 0) == kCFCompareEqualTo
                     ? kObjectID_Device : kAudioObjectUnknown;
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             default:
                 break;
@@ -240,25 +240,25 @@ static OSStatus SoundControlMic_GetPropertyData(AudioServerPlugInDriverRef drive
     } else if (objectID == kObjectID_Device) {
         switch (address->mSelector) {
             case kAudioObjectPropertyName: {
-                CFStringRef value = CFSTR("SoundControl Mic");
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                CFStringRef value = CFSTR("PersonalTools Mic");
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioObjectPropertyManufacturer: {
-                CFStringRef value = CFSTR("SoundControl");
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                CFStringRef value = CFSTR("PersonalTools");
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioObjectPropertyElementName: {
                 CFStringRef value = address->mElement == kAudioObjectPropertyElementMain
                     ? CFSTR("M2 Input 1") : CFSTR("Input 1");
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioDevicePropertyDeviceUID: {
                 CFStringRef value = CFSTR(MS_MIC_DEVICE_UID);
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioDevicePropertyModelUID: {
                 CFStringRef value = CFSTR(MS_MIC_MODEL_UID);
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioObjectPropertyOwnedObjects:
             case kAudioDevicePropertyStreams: {
@@ -267,30 +267,30 @@ static OSStatus SoundControlMic_GetPropertyData(AudioServerPlugInDriverRef drive
                     return noErr;
                 }
                 const AudioObjectID value = kObjectID_Stream_Input;
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioObjectPropertyControlList:
                 *written = 0;
                 return noErr;
             case kAudioDevicePropertyNominalSampleRate: {
                 const Float64 value = 48000.0;
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioDevicePropertyAvailableNominalSampleRates: {
                 const AudioValueRange value = {48000.0, 48000.0};
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioDevicePropertyDeviceCanBeDefaultDevice: {
                 const UInt32 value = address->mScope == kAudioObjectPropertyScopeInput ? 1u : 0u;
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioDevicePropertyDeviceCanBeDefaultSystemDevice: {
                 const UInt32 value = 0u;
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioDevicePropertyDeviceIsAlive: {
-                const UInt32 value = SoundControlMic_IsPresent() ? 1u : 0u;
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                const UInt32 value = PersonalToolsMic_IsPresent() ? 1u : 0u;
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             default:
                 break;
@@ -299,20 +299,20 @@ static OSStatus SoundControlMic_GetPropertyData(AudioServerPlugInDriverRef drive
         switch (address->mSelector) {
             case kAudioObjectPropertyName: {
                 CFStringRef value = CFSTR("M2 Input 1");
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioStreamPropertyVirtualFormat:
             case kAudioStreamPropertyPhysicalFormat: {
-                const AudioStreamBasicDescription value = SoundControlMic_Format();
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                const AudioStreamBasicDescription value = PersonalToolsMic_Format();
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             case kAudioStreamPropertyAvailableVirtualFormats:
             case kAudioStreamPropertyAvailablePhysicalFormats: {
                 AudioStreamRangedDescription value = {0};
-                value.mFormat = SoundControlMic_Format();
+                value.mFormat = PersonalToolsMic_Format();
                 value.mSampleRateRange.mMinimum = 48000.0;
                 value.mSampleRateRange.mMaximum = 48000.0;
-                return SoundControlMic_Put(sizeof(value), dataSize, written, data, &value);
+                return PersonalToolsMic_Put(sizeof(value), dataSize, written, data, &value);
             }
             default:
                 break;
@@ -322,7 +322,7 @@ static OSStatus SoundControlMic_GetPropertyData(AudioServerPlugInDriverRef drive
                                      qualifier, dataSize, written, data);
 }
 
-static OSStatus SoundControlMic_SetPropertyData(AudioServerPlugInDriverRef driver,
+static OSStatus PersonalToolsMic_SetPropertyData(AudioServerPlugInDriverRef driver,
                                             AudioObjectID objectID,
                                             pid_t clientPID,
                                             const AudioObjectPropertyAddress *address,
@@ -342,20 +342,20 @@ static OSStatus SoundControlMic_SetPropertyData(AudioServerPlugInDriverRef drive
                                      qualifier, dataSize, data);
 }
 
-static OSStatus SoundControlMic_StartIO(AudioServerPlugInDriverRef driver,
+static OSStatus PersonalToolsMic_StartIO(AudioServerPlugInDriverRef driver,
                                     AudioObjectID deviceID,
                                     UInt32 clientID) {
-    if (!gSoundControlMicShared) gSoundControlMicShared = MSMicOpenSharedMemory();
-    MSMicResetReader(gSoundControlMicShared);
-    gSoundControlMicPrimed = false;
+    if (!gPersonalToolsMicShared) gPersonalToolsMicShared = MSMicOpenSharedMemory();
+    MSMicResetReader(gPersonalToolsMicShared);
+    gPersonalToolsMicPrimed = false;
     pthread_mutex_lock(&gDevice_IOMutex);
-    gSoundControlMicLastZeroSampleTime = -1.0;
-    ++gSoundControlMicTimestampSeed;
+    gPersonalToolsMicLastZeroSampleTime = -1.0;
+    ++gPersonalToolsMicTimestampSeed;
     pthread_mutex_unlock(&gDevice_IOMutex);
     return NullAudio_StartIO(driver, deviceID, clientID);
 }
 
-static OSStatus SoundControlMic_GetZeroTimeStamp(AudioServerPlugInDriverRef driver,
+static OSStatus PersonalToolsMic_GetZeroTimeStamp(AudioServerPlugInDriverRef driver,
                                              AudioObjectID deviceID,
                                              UInt32 clientID,
                                              Float64 *sampleTime,
@@ -370,20 +370,20 @@ static OSStatus SoundControlMic_GetZeroTimeStamp(AudioServerPlugInDriverRef driv
     uint64_t sourceHostTime = 0u;
     Float64 zeroSampleTime = 0.0;
     uint64_t zeroHostTime = 0u;
-    if (MSMicLoadTimestamp(gSoundControlMicShared, &sourceSampleTime, &sourceHostTime) &&
+    if (MSMicLoadTimestamp(gPersonalToolsMicShared, &sourceSampleTime, &sourceHostTime) &&
         MSMicCalculateZeroTimestamp(sourceSampleTime, sourceHostTime,
                                     (Float64)kDevice_RingBufferSize,
                                     gDevice_HostTicksPerFrame,
                                     &zeroSampleTime, &zeroHostTime)) {
         pthread_mutex_lock(&gDevice_IOMutex);
-        if (gSoundControlMicLastZeroSampleTime >= 0.0 &&
-            zeroSampleTime < gSoundControlMicLastZeroSampleTime) {
-            ++gSoundControlMicTimestampSeed;
+        if (gPersonalToolsMicLastZeroSampleTime >= 0.0 &&
+            zeroSampleTime < gPersonalToolsMicLastZeroSampleTime) {
+            ++gPersonalToolsMicTimestampSeed;
         }
-        gSoundControlMicLastZeroSampleTime = zeroSampleTime;
+        gPersonalToolsMicLastZeroSampleTime = zeroSampleTime;
         *sampleTime = zeroSampleTime;
         *hostTime = zeroHostTime;
-        *seed = gSoundControlMicTimestampSeed;
+        *seed = gPersonalToolsMicTimestampSeed;
         pthread_mutex_unlock(&gDevice_IOMutex);
         return noErr;
     }
@@ -392,17 +392,17 @@ static OSStatus SoundControlMic_GetZeroTimeStamp(AudioServerPlugInDriverRef driv
         driver, deviceID, clientID, sampleTime, hostTime, seed);
     if (status == noErr) {
         pthread_mutex_lock(&gDevice_IOMutex);
-        if (gSoundControlMicLastZeroSampleTime >= 0.0) {
-            gSoundControlMicLastZeroSampleTime = -1.0;
-            ++gSoundControlMicTimestampSeed;
+        if (gPersonalToolsMicLastZeroSampleTime >= 0.0) {
+            gPersonalToolsMicLastZeroSampleTime = -1.0;
+            ++gPersonalToolsMicTimestampSeed;
         }
-        *seed = gSoundControlMicTimestampSeed;
+        *seed = gPersonalToolsMicTimestampSeed;
         pthread_mutex_unlock(&gDevice_IOMutex);
     }
     return status;
 }
 
-static OSStatus SoundControlMic_WillDoIOOperation(AudioServerPlugInDriverRef driver,
+static OSStatus PersonalToolsMic_WillDoIOOperation(AudioServerPlugInDriverRef driver,
                                              AudioObjectID deviceID,
                                              UInt32 clientID,
                                              UInt32 operationID,
@@ -418,7 +418,7 @@ static OSStatus SoundControlMic_WillDoIOOperation(AudioServerPlugInDriverRef dri
     return noErr;
 }
 
-static OSStatus SoundControlMic_DoIOOperation(AudioServerPlugInDriverRef driver,
+static OSStatus PersonalToolsMic_DoIOOperation(AudioServerPlugInDriverRef driver,
                                          AudioObjectID deviceID,
                                          AudioObjectID streamID,
                                          UInt32 clientID,
@@ -435,22 +435,22 @@ static OSStatus SoundControlMic_DoIOOperation(AudioServerPlugInDriverRef driver,
         return kAudioHardwareBadObjectError;
     }
     if (operationID == kAudioServerPlugInIOOperationReadInput && mainBuffer) {
-        (void)MSMicRead(gSoundControlMicShared, (Float32 *)mainBuffer, frameCount,
-                        MS_MIC_PREBUFFER_FRAMES, &gSoundControlMicPrimed);
+        (void)MSMicRead(gPersonalToolsMicShared, (Float32 *)mainBuffer, frameCount,
+                        MS_MIC_PREBUFFER_FRAMES, &gPersonalToolsMicPrimed);
     }
     return noErr;
 }
 
-void *SoundControlMic_Create(CFAllocatorRef allocator, CFUUIDRef requestedTypeUUID) {
-    gAudioServerPlugInDriverInterface.Initialize = SoundControlMic_Initialize;
-    gAudioServerPlugInDriverInterface.HasProperty = SoundControlMic_HasProperty;
-    gAudioServerPlugInDriverInterface.IsPropertySettable = SoundControlMic_IsPropertySettable;
-    gAudioServerPlugInDriverInterface.GetPropertyDataSize = SoundControlMic_GetPropertyDataSize;
-    gAudioServerPlugInDriverInterface.GetPropertyData = SoundControlMic_GetPropertyData;
-    gAudioServerPlugInDriverInterface.SetPropertyData = SoundControlMic_SetPropertyData;
-    gAudioServerPlugInDriverInterface.StartIO = SoundControlMic_StartIO;
-    gAudioServerPlugInDriverInterface.GetZeroTimeStamp = SoundControlMic_GetZeroTimeStamp;
-    gAudioServerPlugInDriverInterface.WillDoIOOperation = SoundControlMic_WillDoIOOperation;
-    gAudioServerPlugInDriverInterface.DoIOOperation = SoundControlMic_DoIOOperation;
+void *PersonalToolsMic_Create(CFAllocatorRef allocator, CFUUIDRef requestedTypeUUID) {
+    gAudioServerPlugInDriverInterface.Initialize = PersonalToolsMic_Initialize;
+    gAudioServerPlugInDriverInterface.HasProperty = PersonalToolsMic_HasProperty;
+    gAudioServerPlugInDriverInterface.IsPropertySettable = PersonalToolsMic_IsPropertySettable;
+    gAudioServerPlugInDriverInterface.GetPropertyDataSize = PersonalToolsMic_GetPropertyDataSize;
+    gAudioServerPlugInDriverInterface.GetPropertyData = PersonalToolsMic_GetPropertyData;
+    gAudioServerPlugInDriverInterface.SetPropertyData = PersonalToolsMic_SetPropertyData;
+    gAudioServerPlugInDriverInterface.StartIO = PersonalToolsMic_StartIO;
+    gAudioServerPlugInDriverInterface.GetZeroTimeStamp = PersonalToolsMic_GetZeroTimeStamp;
+    gAudioServerPlugInDriverInterface.WillDoIOOperation = PersonalToolsMic_WillDoIOOperation;
+    gAudioServerPlugInDriverInterface.DoIOOperation = PersonalToolsMic_DoIOOperation;
     return NullAudio_Create(allocator, requestedTypeUUID);
 }

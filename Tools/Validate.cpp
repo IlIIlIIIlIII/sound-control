@@ -8,12 +8,12 @@
 
 int main(int argc, char **argv) {
     if (argc < 3 || argc > 4) {
-        std::cerr << "Usage: SoundControlValidate L.txt R.txt [sample-rate]\n";
+        std::cerr << "Usage: PersonalToolsValidate L.txt R.txt [sample-rate]\n";
         return 2;
     }
     const double sampleRate = argc == 4 ? std::strtod(argv[3], nullptr) : 48000.0;
-    const auto left = soundcontrol::parseREWConfigurablePEQFile(argv[1], soundcontrol::Channel::left);
-    const auto right = soundcontrol::parseREWConfigurablePEQFile(argv[2], soundcontrol::Channel::right);
+    const auto left = personaltools::parseREWConfigurablePEQFile(argv[1], personaltools::Channel::left);
+    const auto right = personaltools::parseREWConfigurablePEQFile(argv[2], personaltools::Channel::right);
     if (!left) {
         std::cerr << "L: " << left.error << '\n';
         return 1;
@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    soundcontrol::StereoDSP dsp;
+    personaltools::StereoDSP dsp;
     std::string error;
     if (!dsp.configure(left.filters, right.filters, sampleRate, error)) {
         std::cerr << error << '\n';
@@ -48,9 +48,9 @@ int main(int argc, char **argv) {
         75.0, 80.0, 100.0, 120.0, 140.0, 160.0, 200.0};
     for (double frequency : bassFrequencies) {
         std::cout << "response@" << frequency << "Hz=L"
-                  << soundcontrol::responseDB(left.filters, frequency, sampleRate)
+                  << personaltools::responseDB(left.filters, frequency, sampleRate)
                   << "dB,R"
-                  << soundcontrol::responseDB(right.filters, frequency, sampleRate)
+                  << personaltools::responseDB(right.filters, frequency, sampleRate)
                   << "dB\n";
     }
     return 0;

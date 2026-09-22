@@ -1,7 +1,7 @@
-<Window x:Class="SoundControl.MainWindow"
+<Window x:Class="PersonalTools.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:SoundControl" Title="Personal Tools">
+    xmlns:local="using:PersonalTools" Title="Personal Tools">
   <Window.SystemBackdrop><MicaBackdrop/></Window.SystemBackdrop>
   <Grid x:Name="Root">
     <Grid.Resources>
@@ -19,7 +19,7 @@
                     PaneDisplayMode="Auto" SelectionChanged="Navigate" DisplayModeChanged="NavigationDisplayModeChanged">
       <NavigationView.PaneCustomContent>
         <StackPanel x:Name="BrandHeader" Orientation="Horizontal" Spacing="12" Margin="16,28,16,24">
-          <Image Source="Assets/SoundControl.png" Width="40" Height="40" AutomationProperties.Name="SoundControl"/>
+          <Image Source="Assets/PersonalTools.png" Width="40" Height="40" AutomationProperties.Name="Personal Tools"/>
           <StackPanel VerticalAlignment="Center">
             <TextBlock Text="Personal Tools" FontWeight="SemiBold" FontSize="18"/>
             <TextBlock Text="DESKTOP UTILITIES" FontSize="10" CharacterSpacing="100" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -171,7 +171,7 @@
                 <TextBox x:Name="DiagnosticLog" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="280" AutomationProperties.Name="진단 기록"/>
               </StackPanel>
             </Border>
-            <TextBlock Text="SoundControl · WinUI 3" Style="{StaticResource Muted}"/>
+            <TextBlock Text="Personal Tools · WinUI 3" Style="{StaticResource Muted}"/>
           </StackPanel>
         </ScrollViewer>
         <local:AntigravityPage x:Name="BridgePage" Visibility="Collapsed"/>

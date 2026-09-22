@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 internal static class AntigravityCli
 {

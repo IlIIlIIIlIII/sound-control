@@ -8,7 +8,7 @@
 #include <cstring>
 #include <stdexcept>
 
-namespace soundcontrol::win {
+namespace personaltools::win {
 class DtlnNpu {
     using Status=int;
     using Create=Status(__cdecl*)(void**);

@@ -6,7 +6,7 @@ param(
     [string]$ToolchainDirectory = 'build\tooling\llvm-mingw-20260908-ucrt-x86_64',
     [string]$SdkDirectory = 'build\tooling\windows-sdk\c\Include\10.0.26100.0\um',
     [string]$CMakeDirectory = 'build\tooling\cmake-4.4.3-windows-x86_64\bin',
-    [string]$DotNet = "$env:LOCALAPPDATA\SoundControl\Tooling\dotnet\dotnet.exe"
+    [string]$DotNet = "$env:LOCALAPPDATA\PersonalTools\Tooling\dotnet\dotnet.exe"
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -32,7 +32,7 @@ foreach ($name in @('audioenginebaseapo.h','audioengineextensionapo.h','audiomed
     if ($name -eq 'mmdeviceapi.h') {
         $declarations.Add('__CRT_UUID_DECL(MMDeviceEnumerator,0xBCDE0395,0xE52F,0x467C,0x8E,0x3D,0xC4,0x57,0x92,0x91,0x69,0x2E)')
     }
-    $guard = 'SOUNDCONTROL_UUID_' + [IO.Path]::GetFileNameWithoutExtension($name)
+    $guard = 'PERSONALTOOLS_UUID_' + [IO.Path]::GetFileNameWithoutExtension($name)
     $lines = @($content, "#if defined(__cplusplus) && !defined($guard)", "#define $guard")
     $lines += $declarations
     $lines += '#endif'
@@ -52,7 +52,7 @@ try {
     & ctest --test-dir $BuildDirectory --output-on-failure
     if ($LASTEXITCODE -ne 0) { throw 'Native tests failed.' }
     & cmake --install $BuildDirectory --prefix $PackageDirectory
-    if ($LASTEXITCODE -ne 0) { throw 'Native packaging failed. Close SoundControl before rebuilding.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Native packaging failed. Close PersonalTools before rebuilding.' }
     # The fixture subprocess needs to find the same portable framework as dotnet run.
     $previousDotNetRoot = $env:DOTNET_ROOT
     try {
@@ -60,7 +60,7 @@ try {
         & $DotNet run --project (Join-Path $root 'Tests\AntigravityBridge\AntigravityBridgeTests.csproj') -c Release
         if ($LASTEXITCODE -ne 0) { throw 'Antigravity bridge tests failed.' }
     } finally { $env:DOTNET_ROOT = $previousDotNetRoot }
-    & $DotNet publish (Join-Path $root 'Sources\Windows\WinUI\SoundControlWindows.csproj') -c Release -r win-x64 --self-contained true -p:Platform=x64 -o (Join-Path $PackageDirectory 'ui')
+    & $DotNet publish (Join-Path $root 'Sources\Windows\WinUI\PersonalToolsWindows.csproj') -c Release -r win-x64 --self-contained true -p:Platform=x64 -o (Join-Path $PackageDirectory 'ui')
     if ($LASTEXITCODE -ne 0) { throw 'WinUI build failed.' }
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'Tests\WindowsInstallerTests.ps1')
     if ($LASTEXITCODE -ne 0) { throw 'Installer tests failed.' }

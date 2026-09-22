@@ -37,7 +37,7 @@ The native C++ NPU runner matches the Python NPU reference to about 0.33% relati
 - Mono microphone input 1; neural processing at 16 kHz. This limits the processed voice bandwidth to roughly 8 kHz.
 - If the model fails or misses a deadline, output uses the latency-matched original microphone rather than silence. This preserves speech but can let echo through; it is not a successful AEC result.
 - Opt-in deployment flag: `npu/enabled.flag` next to the installed APO. Runtime and weights also reside there. Without the flag, the existing implementation remains active.
-- App status distinguishes NPU initialization, processing, reference absence and initialization failure. SoundControl must remain in the tray to provide the selected speaker's reference signal.
+- App status distinguishes NPU initialization, processing, reference absence and initialization failure. PersonalTools must remain in the tray to provide the selected speaker's reference signal.
 - Six CTest suites pass, including disabled/failed-neural-path channel and latency preservation. Live installed validation is separate and must be recorded before claiming long-running stability.
 
 ## Provenance

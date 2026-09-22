@@ -4,11 +4,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'WindowsInstall.psm1') -Force
 Assert-Administrator
-$directory = Join-Path $env:ProgramFiles 'SoundControl'
+$directory = Join-Path $env:ProgramFiles 'PersonalTools'
 $backupPath = Join-Path $directory 'installation-backup.clixml'
 if (-not (Test-Path -LiteralPath $backupPath)) { throw 'No installation backup found. No audio settings changed.' }
 # Prevent a concurrent repair from re-applying effects during rollback.
-$task = Get-ScheduledTask -TaskName 'SoundControl Device Recovery' -ErrorAction SilentlyContinue
+$task = Get-ScheduledTask -TaskName 'PersonalTools Device Recovery' -ErrorAction SilentlyContinue
 if ($task) {
     Disable-ScheduledTask -InputObject $task | Out-Null
     Stop-ScheduledTask -InputObject $task

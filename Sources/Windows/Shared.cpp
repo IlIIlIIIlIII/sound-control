@@ -2,16 +2,21 @@
 #include <shlobj.h>
 #include <cmath>
 
-namespace soundcontrol::win {
+namespace personaltools::win {
 std::filesystem::path dataDirectory() {
-#ifdef SOUNDCONTROL_TESTING
+#ifdef PERSONALTOOLS_TESTING
     wchar_t root[32768]{};
     GetTempPathW(32768,root);
-    return std::filesystem::path(root)/(L"SoundControl-contract-"+std::to_wstring(GetCurrentProcessId()));
+    return std::filesystem::path(root)/(L"PersonalTools-contract-"+std::to_wstring(GetCurrentProcessId()));
 #endif
     PWSTR path = nullptr;
     if (FAILED(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, nullptr, &path))) return {};
-    const auto result = std::filesystem::path(path) / L"SoundControl";
+    auto result = std::filesystem::path(path) / L"PersonalTools";
+    // Existing APO installations keep their live shared state until migrated.
+    const auto legacy = std::filesystem::path(path) / L"SoundControl";
+    std::error_code error;
+    if (!std::filesystem::exists(result / L"state-v1.bin", error) &&
+        std::filesystem::exists(legacy / L"state-v1.bin", error)) result = legacy;
     CoTaskMemFree(path); return result;
 }
 SharedFile::~SharedFile() {

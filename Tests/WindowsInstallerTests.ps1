@@ -3,7 +3,7 @@ param([string]$ModulePath = (Join-Path $PSScriptRoot '..\Scripts\WindowsInstall.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module $ModulePath -Force
-$root = 'HKCU:\Software\SoundControlInstallerTest-' + [guid]::NewGuid().ToString('N')
+$root = 'HKCU:\Software\PersonalToolsInstallerTest-' + [guid]::NewGuid().ToString('N')
 try {
     $properties = "$root\Capture\Properties"
     New-Item -Path $properties -Force | Out-Null

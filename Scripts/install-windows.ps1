@@ -24,7 +24,7 @@ $fx = '{d04e05a6-594b-4fb6-a80d-01af5eed7d1d}'
 $modes = '{d3993a3f-99c2-4402-b5ec-a92a0367664b}'
 $defaultMode = '{C18E2F7E-933D-4965-B7D1-1EEF228D2AF3}'
 $communicationsMode = '{98951333-B9CD-48B1-A0A3-FF40682D73F7}'
-$destination = Join-Path $env:ProgramFiles 'SoundControl'
+$destination = Join-Path $env:ProgramFiles 'PersonalTools'
 $backupPath = Join-Path $destination 'installation-backup.clixml'
 if (Test-Path -LiteralPath $backupPath) { throw 'Already installed or recovery pending. Run uninstall-windows.ps1 before changing endpoints or updating.' }
 foreach ($endpoint in @($render,$capture)) {
@@ -42,12 +42,12 @@ foreach ($endpoint in @($render,$capture)) {
         $key.Close()
     }
 }
-$payload = @('SoundControlAPO.dll','SoundControlSetup.exe','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1','WindowsDeviceRecovery.psm1','repair-windows-device.ps1','repair-windows-capture.ps1','register-windows-device-recovery.ps1','ui')
+$payload = @('PersonalToolsAPO.dll','PersonalToolsSetup.exe','install-windows.ps1','uninstall-windows.ps1','WindowsInstall.psm1','WindowsDeviceRecovery.psm1','repair-windows-device.ps1','repair-windows-capture.ps1','register-windows-device-recovery.ps1','ui')
 if(Test-Path -LiteralPath (Join-Path $SourceDirectory 'npu\enabled.flag')) { $payload += 'npu' }
 foreach ($name in $payload) {
     if (-not (Test-Path -LiteralPath (Join-Path $SourceDirectory $name))) { throw "Missing payload: $name. Use cmake --install output." }
 }
-foreach ($name in @('SoundControlAPO.dll','SoundControlSetup.exe','ui\SoundControlBridge.dll','ui\SoundControlWindows.exe','ui\SoundControlWindows.dll')) {
+foreach ($name in @('PersonalToolsAPO.dll','PersonalToolsSetup.exe','ui\PersonalToolsBridge.dll','ui\PersonalToolsWindows.exe','ui\PersonalToolsWindows.dll')) {
     if (-not (Test-Path -LiteralPath (Join-Path $SourceDirectory $name))) { throw "Missing payload: $name. Run Scripts\build-windows.ps1." }
     $signature = Get-AuthenticodeSignature -LiteralPath (Join-Path $SourceDirectory $name)
     if (-not (Test-PayloadSignature $signature.Status.ToString() -LocalUnsigned:$LocalUnsigned)) {
@@ -55,7 +55,7 @@ foreach ($name in @('SoundControlAPO.dll','SoundControlSetup.exe','ui\SoundContr
     }
 }
 if ($CheckOnly) {
-    Write-Output "Capture registration: $captureMode. Legacy capture requires the SoundControl desktop app to keep running."
+    Write-Output "Capture registration: $captureMode. Legacy capture requires the PersonalTools desktop app to keep running."
     if ($LocalUnsigned) { Write-Output 'Local unsigned mode: installation will set DisableProtectedAudioDG=1 for this PC and back up its previous value. Protected-content playback may be affected.' }
     Write-Output 'Preflight passed. No files or audio settings were changed. Protected Audio loading still requires runtime verification.'
     return
@@ -67,16 +67,16 @@ function Add-Change($path,$name,$kind,$value) { $changes.Add([pscustomobject]@{P
 if ($LocalUnsigned) {
     Add-Change 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Audio' 'DisableProtectedAudioDG' 'DWord' 1
 }
-foreach ($item in @(@($eq,'SoundControl stereo EQ',15),@($aec,'SoundControl microphone echo cancellation',12))) {
+foreach ($item in @(@($eq,'PersonalTools stereo EQ',15),@($aec,'PersonalTools microphone echo cancellation',12))) {
     $id=$item[0]; $title=$item[1]; $flags=$item[2]
     $classPath="HKLM:\SOFTWARE\Classes\CLSID\$id"
     $apoPath="HKLM:\SOFTWARE\Classes\AudioEngine\AudioProcessingObjects\$id"
     if ((Test-Path $classPath) -or (Test-Path $apoPath)) { throw "Registration already exists without an installation backup: $id" }
     Add-Change $classPath '' 'String' $title
-    Add-Change "$classPath\InprocServer32" '' 'String' (Join-Path $destination 'SoundControlAPO.dll')
+    Add-Change "$classPath\InprocServer32" '' 'String' (Join-Path $destination 'PersonalToolsAPO.dll')
     Add-Change "$classPath\InprocServer32" 'ThreadingModel' 'String' 'Both'
     Add-Change $apoPath 'FriendlyName' 'String' $title
-    Add-Change $apoPath 'Copyright' 'String' 'SoundControl'
+    Add-Change $apoPath 'Copyright' 'String' 'PersonalTools'
     foreach ($pair in @(@('MajorVersion',1),@('MinorVersion',0),@('Flags',$flags),@('MinInputConnections',1),@('MaxInputConnections',1),@('MinOutputConnections',1),@('MaxOutputConnections',1),@('MaxInstances',-1),@('NumAPOInterfaces',1))) {
         Add-Change $apoPath $pair[0] 'DWord' ([int]$pair[1])
     }
@@ -115,23 +115,23 @@ foreach ($name in $payload) {
 # Recovery metadata is admin-owned in Program Files, never in user-writable data.
 [pscustomobject]@{Version=1;LocalUnsigned=[bool]$LocalUnsigned;RenderId=$RenderId;CaptureId=$CaptureId;CaptureMode=$captureMode;Entries=$original} | Export-Clixml -LiteralPath $backupPath
 try {
-    $data = Join-Path $env:ProgramData 'SoundControl'
+    $data = Join-Path $env:ProgramData 'PersonalTools'
     New-Item -ItemType Directory -Path $data -Force | Out-Null
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     & icacls.exe $data /grant "*$($sid):(OI)(CI)M" '*S-1-5-19:(OI)(CI)M' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Unable to set audio-engine settings access.' }
-    $p = Start-Process -FilePath (Join-Path $destination 'SoundControlSetup.exe') -ArgumentList @('--initialize',"`"$RenderId`"","`"$CaptureId`"") -WindowStyle Hidden -Wait -PassThru
+    $p = Start-Process -FilePath (Join-Path $destination 'PersonalToolsSetup.exe') -ArgumentList @('--initialize',"`"$RenderId`"","`"$CaptureId`"") -WindowStyle Hidden -Wait -PassThru
     if ($p.ExitCode -ne 0) { throw "Initial device/EQ configuration failed ($($p.ExitCode)). Check E:\Speaker\L.txt and R.txt." }
     foreach ($change in $changes) { Set-RegistryValue $change.Path $change.Name $change.Kind $change.Value }
     & (Join-Path $destination 'register-windows-device-recovery.ps1')
 } catch {
     $failure = $_
     try {
-        Unregister-ScheduledTask -TaskName 'SoundControl Device Recovery' -Confirm:$false -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName 'PersonalTools Device Recovery' -Confirm:$false -ErrorAction SilentlyContinue
         Restore-RegistryValues $original; Remove-Item -LiteralPath $backupPath
     }
     catch { throw "Installation failed ($failure); rollback also failed ($_). Keep $backupPath and run uninstall-windows.ps1 elevated." }
     throw "Installation failed; original effect registrations restored. $failure"
 }
-Write-Output 'Registered; actual processing is NOT yet verified. Restart Windows Audio (interrupts playback/capture) or reboot, reopen shared-mode playback/capture apps, then inspect the SoundControl status window. Uninstall restores the backed-up audio settings, including Protected Audio when local unsigned mode was used.'
+Write-Output 'Registered; actual processing is NOT yet verified. Restart Windows Audio (interrupts playback/capture) or reboot, reopen shared-mode playback/capture apps, then inspect the PersonalTools status window. Uninstall restores the backed-up audio settings, including Protected Audio when local unsigned mode was used.'
 # The existing WinUI window refreshes in place; do not launch an elevated UI.

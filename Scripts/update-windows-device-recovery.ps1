@@ -1,17 +1,17 @@
-# Upgrade an existing SoundControl installation without changing APO/model binaries.
+# Upgrade an existing PersonalTools installation without changing APO/model binaries.
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$SourceDirectory)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'WindowsInstall.psm1') -Force
 Assert-Administrator
-$destination = Join-Path $env:ProgramFiles 'SoundControl'
+$destination = Join-Path $env:ProgramFiles 'PersonalTools'
 $backupPath = Join-Path $destination 'installation-backup.clixml'
 $installation = Import-Clixml -LiteralPath $backupPath
 if ($installation.Version -ne 1) { throw 'Unsupported installation.' }
 $source = (Resolve-Path -LiteralPath $SourceDirectory).Path
-$files = @('SoundControlSetup.exe','WindowsInstall.psm1','WindowsDeviceRecovery.psm1','install-windows.ps1','uninstall-windows.ps1','repair-windows-device.ps1','register-windows-device-recovery.ps1',
-    'ui\SoundControlBridge.dll','ui\SoundControlWindows.exe','ui\SoundControlWindows.dll','ui\SoundControlWindows.deps.json','ui\SoundControlWindows.runtimeconfig.json','ui\SoundControlWindows.pri')
+$files = @('PersonalToolsSetup.exe','WindowsInstall.psm1','WindowsDeviceRecovery.psm1','install-windows.ps1','uninstall-windows.ps1','repair-windows-device.ps1','register-windows-device-recovery.ps1',
+    'ui\PersonalToolsBridge.dll','ui\PersonalToolsWindows.exe','ui\PersonalToolsWindows.dll','ui\PersonalToolsWindows.deps.json','ui\PersonalToolsWindows.runtimeconfig.json','ui\PersonalToolsWindows.pri')
 foreach ($file in $files) {
     $path = Join-Path $source $file
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing payload: $file" }
@@ -23,10 +23,10 @@ foreach ($file in $files) {
 $recovery = Join-Path $destination ('device-recovery-backup-' + (Get-Date -Format yyyyMMdd-HHmmss))
 New-Item -ItemType Directory -Path (Join-Path $recovery 'ui') -Force | Out-Null
 Copy-Item -LiteralPath $backupPath -Destination $recovery
-$task = Get-ScheduledTask -TaskName 'SoundControl Device Recovery' -ErrorAction SilentlyContinue
+$task = Get-ScheduledTask -TaskName 'PersonalTools Device Recovery' -ErrorAction SilentlyContinue
 if ($task) { Disable-ScheduledTask -InputObject $task | Out-Null; Stop-ScheduledTask -InputObject $task }
-foreach ($process in @(Get-Process SoundControlWindows -ErrorAction SilentlyContinue)) {
-    if ($process.Path -eq (Join-Path $destination 'ui\SoundControlWindows.exe')) { Stop-Process -Id $process.Id; $process.WaitForExit() }
+foreach ($process in @(Get-Process PersonalToolsWindows -ErrorAction SilentlyContinue)) {
+    if ($process.Path -eq (Join-Path $destination 'ui\PersonalToolsWindows.exe')) { Stop-Process -Id $process.Id; $process.WaitForExit() }
 }
 $copied = @()
 try {

@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace SoundControl;
+namespace PersonalTools;
 // Only shell integration uses HWND APIs. All visible settings and scrolling are WinUI.
 internal sealed class TrayIcon : IDisposable
 {
@@ -17,7 +17,7 @@ internal sealed class TrayIcon : IDisposable
         this.window = window; this.show = show; this.quit = quit;
         callback = WindowMessage;
         taskbarCreated = RegisterWindowMessage("TaskbarCreated");
-        customIcon = LoadImage(0, Path.Combine(AppContext.BaseDirectory, "Assets", "SoundControl.ico"), 1, 32, 32, 0x10);
+        customIcon = LoadImage(0, Path.Combine(AppContext.BaseDirectory, "Assets", "PersonalTools.ico"), 1, 32, 32, 0x10);
         icon = new NotifyIconData { Size = (uint)Marshal.SizeOf<NotifyIconData>(), Window = window, Id = 1,
             Flags = 7, CallbackMessage = CallbackMessage, Icon = customIcon != 0 ? customIcon : LoadIcon(0, (nint)32512), Tip = "Personal Tools",
             Info = "", InfoTitle = "" };

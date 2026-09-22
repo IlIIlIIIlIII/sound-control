@@ -1,5 +1,5 @@
 using System.Text.Json;
-using SoundControl;
+using PersonalTools;
 
 internal static class ClipboardFeatureChecks
 {

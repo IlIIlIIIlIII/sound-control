@@ -8,7 +8,7 @@ int WINAPI wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int) {
     if(!rebind&&(!args||count!=4||wcscmp(args[1],L"--initialize")!=0)){LocalFree(args);return 2;}
     if(FAILED(CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED))){LocalFree(args);return 1;}
     wchar_t path[32768]{};GetModuleFileNameW(nullptr,path,32768);
-    const auto library=std::filesystem::path(path).parent_path()/L"ui"/L"SoundControlBridge.dll";
+    const auto library=std::filesystem::path(path).parent_path()/L"ui"/L"PersonalToolsBridge.dll";
     auto module=LoadLibraryExW(library.c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32);
     using Initialize=int(__cdecl*)(const wchar_t*,const wchar_t*);
     auto initialize=module?reinterpret_cast<Initialize>(GetProcAddress(module,"MT_Initialize")):nullptr;

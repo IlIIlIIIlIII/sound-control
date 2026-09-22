@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace soundcontrol {
+namespace personaltools {
 
 enum class EchoProfile {
     adaptive,
@@ -292,4 +292,4 @@ private:
     std::atomic<std::uint64_t> linearOnlyBlocks_{0};
 };
 
-}  // namespace soundcontrol
+}  // namespace personaltools

@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 public sealed record ClipboardSettings
 {

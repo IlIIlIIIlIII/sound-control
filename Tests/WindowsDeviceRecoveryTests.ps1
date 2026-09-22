@@ -40,8 +40,8 @@ try {
     Check ($identity.Serial -eq 'LOCATION') 'Unique capability enables serial identity'
 } finally { Remove-Item Function:\Get-PnpDeviceProperty; Remove-Variable recoveryTestCapabilities -Scope Global }
 
-$root='HKCU:\Software\SoundControlRecoveryTest-'+[guid]::NewGuid().ToString('N')
-$temp=Join-Path ([IO.Path]::GetTempPath()) ('SoundControlRecovery-'+[guid]::NewGuid().ToString('N')+'.clixml')
+$root='HKCU:\Software\PersonalToolsRecoveryTest-'+[guid]::NewGuid().ToString('N')
+$temp=Join-Path ([IO.Path]::GetTempPath()) ('PersonalToolsRecovery-'+[guid]::NewGuid().ToString('N')+'.clixml')
 try {
     New-Item -Path $root -Force | Out-Null
     $changes=@(Get-RecoveryEqChanges $root)

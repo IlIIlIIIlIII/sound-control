@@ -12,7 +12,7 @@ int main(int argc,char** argv){
         std::vector<float> samples;float chunk[256];
         while(fread(chunk,sizeof(float),256,input)==256)samples.insert(samples.end(),chunk,chunk+256);
         fclose(input);if(samples.empty())return 4;
-        soundcontrol::win::DtlnNpu model;model.open(std::filesystem::absolute(argv[1]));
+        personaltools::win::DtlnNpu model;model.open(std::filesystem::absolute(argv[1]));
         FILE* output=fopen(argv[3],"wb");if(!output)return 5;
         const int repeats=argc==5?std::clamp(atoi(argv[4]),1,100):1;
         float mic[128],ref[128],out[128];unsigned blocks=0;

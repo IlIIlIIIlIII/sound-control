@@ -6,7 +6,7 @@
 #include <functional>
 #include <vector>
 
-namespace soundcontrol {
+namespace personaltools {
 
 struct EchoDelayObservation {
     bool fresh = false;
@@ -84,4 +84,4 @@ private:
     bool alternateSucceeded_ = false;
 };
 
-} // namespace soundcontrol
+} // namespace personaltools

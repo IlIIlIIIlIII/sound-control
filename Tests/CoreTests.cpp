@@ -24,7 +24,7 @@
 #endif
 #include <vector>
 
-using namespace soundcontrol;
+using namespace personaltools;
 
 namespace {
 
@@ -77,7 +77,7 @@ void parserTests() {
 
 void importTests() {
     const auto directory = std::filesystem::temp_directory_path() /
-                           ("soundcontrol-tests-" + std::to_string(getpid()));
+                           ("personaltools-tests-" + std::to_string(getpid()));
     std::filesystem::create_directories(directory);
     const auto source = directory / "source.txt";
     const auto destination = directory / "left.txt";
@@ -277,47 +277,47 @@ std::array<std::byte, 128> targetEDID() {
 void displayCoreTests() {
     auto edid = targetEDID();
     std::string error;
-    expect(soundcontrol::display::validateEDID(edid, error), error);
-    expect(soundcontrol::display::isTarget32RTX950EDID(edid),
+    expect(personaltools::display::validateEDID(edid, error), error);
+    expect(personaltools::display::isTarget32RTX950EDID(edid),
            "32RTX950 EDID identity is recognized");
 
     auto corrupt = edid;
     corrupt[20] = std::byte{0x01};
-    expect(!soundcontrol::display::validateEDID(corrupt, error),
+    expect(!personaltools::display::validateEDID(corrupt, error),
            "bad EDID checksum is rejected");
     auto wrongExtensionCount = edid;
     wrongExtensionCount[126] = std::byte{0x01};
-    expect(!soundcontrol::display::validateEDID(wrongExtensionCount, error),
+    expect(!personaltools::display::validateEDID(wrongExtensionCount, error),
            "EDID extension length mismatch is rejected");
 
-    using soundcontrol::display::ReinitializeDisplay;
-    const auto order = soundcontrol::display::makeReinitializeOrder({
+    using personaltools::display::ReinitializeDisplay;
+    const auto order = personaltools::display::makeReinitializeOrder({
         {50, 0x1234, 0x5678, "unrelated"},
-        {5, soundcontrol::display::k32RTX950Vendor,
-         soundcontrol::display::k32RTX950Model,
-         soundcontrol::display::kHDMI32RTX950UUID},
-        {3, soundcontrol::display::kMO32U24Vendor,
-         soundcontrol::display::kMO32U24Model, "mo-b"},
-        {2, soundcontrol::display::k32RTX950Vendor,
-         soundcontrol::display::k32RTX950Model,
-         soundcontrol::display::kDock32RTX950UUID},
-        {4, soundcontrol::display::kMO32U24Vendor,
-         soundcontrol::display::kMO32U24Model, "mo-a"},
+        {5, personaltools::display::k32RTX950Vendor,
+         personaltools::display::k32RTX950Model,
+         personaltools::display::kHDMI32RTX950UUID},
+        {3, personaltools::display::kMO32U24Vendor,
+         personaltools::display::kMO32U24Model, "mo-b"},
+        {2, personaltools::display::k32RTX950Vendor,
+         personaltools::display::k32RTX950Model,
+         personaltools::display::kDock32RTX950UUID},
+        {4, personaltools::display::kMO32U24Vendor,
+         personaltools::display::kMO32U24Model, "mo-a"},
     });
     expect(order == std::vector<std::uint32_t>({4, 3, 2, 5, 50}),
            "display reinitialization prioritizes MO pair, dock 32RTX950, then HDMI 32RTX950");
 
-    using soundcontrol::display::DisplayGeometry;
+    using personaltools::display::DisplayGeometry;
     std::vector<DisplayGeometry> displays{
         {1, 0x0610, 1, 1, 0, 0, 1728, 1117, 0, true, true, false},
-        {3, soundcontrol::display::kMO32U24Vendor, soundcontrol::display::kMO32U24Model,
-         soundcontrol::display::kMO32U24Serial, 0, -1440, 2560, 1440, 180,
+        {3, personaltools::display::kMO32U24Vendor, personaltools::display::kMO32U24Model,
+         personaltools::display::kMO32U24Serial, 0, -1440, 2560, 1440, 180,
          false, true, false},
-        {4, soundcontrol::display::kMO32U24Vendor, soundcontrol::display::kMO32U24Model,
-         soundcontrol::display::kMO32U24Serial, 0, 0, 2560, 1440, 0,
+        {4, personaltools::display::kMO32U24Vendor, personaltools::display::kMO32U24Model,
+         personaltools::display::kMO32U24Serial, 0, 0, 2560, 1440, 0,
          false, true, false},
     };
-    const auto swap = soundcontrol::display::makeMO32U24SwapPlan(displays, error);
+    const auto swap = personaltools::display::makeMO32U24SwapPlan(displays, error);
     expect(swap.has_value(), error);
     expect(swap && swap->first.id == 3 && swap->first.x == 0 &&
                swap->first.y == 0 && swap->first.rotation == 0 &&
@@ -326,19 +326,19 @@ void displayCoreTests() {
            "MO32U24 position and rotation roles are swapped together");
 
     displays[2].online = false;
-    expect(!soundcontrol::display::makeMO32U24SwapPlan(displays, error),
+    expect(!personaltools::display::makeMO32U24SwapPlan(displays, error),
            "swap refuses a missing MO32U24");
     displays[2].online = true;
     displays[2].mirrored = true;
-    expect(!soundcontrol::display::makeMO32U24SwapPlan(displays, error),
+    expect(!personaltools::display::makeMO32U24SwapPlan(displays, error),
            "swap refuses a mirrored MO32U24");
     displays[2].mirrored = false;
     displays[2].width = 1920;
-    expect(!soundcontrol::display::makeMO32U24SwapPlan(displays, error),
+    expect(!personaltools::display::makeMO32U24SwapPlan(displays, error),
            "swap refuses different logical sizes");
     displays[2].width = 2560;
     displays[2].rotation = 45;
-    expect(!soundcontrol::display::makeMO32U24SwapPlan(displays, error),
+    expect(!personaltools::display::makeMO32U24SwapPlan(displays, error),
            "swap refuses an unsupported rotation");
 }
 
@@ -1226,7 +1226,7 @@ int main() {
     aecTests();
     referenceTimelineTests();
     if (failures == 0) {
-        std::cout << "All SoundControl core tests passed\n";
+        std::cout << "All PersonalTools core tests passed\n";
         return 0;
     }
     std::cerr << failures << " test(s) failed\n";

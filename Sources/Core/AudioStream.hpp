@@ -3,7 +3,7 @@
 #include <array>
 #include <atomic>
 
-namespace soundcontrol {
+namespace personaltools {
 // One auxiliary-input producer, one microphone consumer. The consumer alone
 // owns the timeline and canceller. Never reset the queue while either is active.
 class EchoStream {

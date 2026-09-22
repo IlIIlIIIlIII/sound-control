@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
-namespace SoundControl;
+namespace PersonalTools;
 public sealed partial class MainWindow : Window
 {
     private ClipboardController? clipboard;
@@ -19,14 +19,21 @@ public sealed partial class MainWindow : Window
     private bool updating, refreshing, busy, quitting, closed;
     private bool bridgeStartupRequested;
     private static string PackageDirectory => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
-    private static string DataDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "SoundControl");
-    private static string BackupPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "SoundControl", "installation-backup.clixml");
+    private static string AudioPath(Environment.SpecialFolder folder, string marker)
+    {
+        var root = Environment.GetFolderPath(folder);
+        var current = Path.Combine(root, "PersonalTools");
+        var legacy = Path.Combine(root, "SoundControl");
+        return !File.Exists(Path.Combine(current, marker)) && File.Exists(Path.Combine(legacy, marker)) ? legacy : current;
+    }
+    private static string DataDirectory => AudioPath(Environment.SpecialFolder.CommonApplicationData, "state-v1.bin");
+    private static string BackupPath => Path.Combine(AudioPath(Environment.SpecialFolder.ProgramFiles, "installation-backup.clixml"), "installation-backup.clixml");
 
     public MainWindow()
     {
         InitializeComponent();
         Title = "Personal Tools";
-        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "SoundControl.ico"));
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "PersonalTools.ico"));
         UpdateTitleTheme();
         Root.ActualThemeChanged += (_, _) => UpdateTitleTheme();
         var dpi = GetDpiForWindow(WindowNative.GetWindowHandle(this)) / 96.0;
@@ -164,7 +171,7 @@ public sealed partial class MainWindow : Window
                 ? "마이크 처리 콜백이 확인되지 않았습니다. 녹음 앱을 열어 확인해 주세요. 녹음 중에도 이 안내가 유지되면 효과 연결을 점검해야 합니다. EQ 동작만으로 마이크 반향 제거를 확인할 수 없습니다."
                 : !next.Capture.Enabled
                 ? "마이크 효과가 우회되고 있습니다. Windows 입력 장치의 오디오 향상 기능과 녹음 앱 설정을 확인해 주세요."
-                : "스피커 참조 신호가 확인되지 않았습니다. 선택한 스피커로 소리를 재생하고 SoundControl을 백그라운드에 유지해 주세요. 무음 중에는 확인을 기다립니다.";
+                : "스피커 참조 신호가 확인되지 않았습니다. 선택한 스피커로 소리를 재생하고 Personal Tools를 백그라운드에 유지해 주세요. 무음 중에는 확인을 기다립니다.";
             ClippingWarning.IsOpen = next.Clipping;
             FooterStatus.Text = !installed ? "설치 전 · 오디오 효과가 적용되지 않았습니다"
                 : $"EQ: {(!next.EqEnabled ? "꺼짐" : next.Render.Error != 0 ? "오류" : next.Render.Active && next.Render.Enabled ? "처리 중" : "확인 대기")} · 반향 제거: {(!next.AecEnabled ? "꺼짐" : captureVerified ? "처리 경로 확인" : "확인 안 됨")}";
@@ -255,7 +262,7 @@ public sealed partial class MainWindow : Window
     {
         if (busy) return;
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "원래 오디오 설정으로 복원할까요?",
-            Content = "SoundControl 효과 등록을 제거하고 설치 전 장치 설정과 오디오 보호 설정을 복원합니다. 가져온 필터는 보존됩니다.",
+            Content = "Personal Tools 효과 등록을 제거하고 설치 전 장치 설정과 오디오 보호 설정을 복원합니다. 가져온 필터는 보존됩니다.",
             PrimaryButtonText = "복원", CloseButtonText = "취소", DefaultButton = ContentDialogButton.Close };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary) await RunInstallerAsync(true, "", "");
     }
@@ -265,7 +272,9 @@ public sealed partial class MainWindow : Window
         busy = true; await RefreshAsync();
         try
         {
-            string script = Path.Combine(PackageDirectory, remove ? "uninstall-windows.ps1" : "install-windows.ps1");
+            string script = remove && File.Exists(BackupPath)
+                ? Path.Combine(Path.GetDirectoryName(BackupPath)!, "uninstall-windows.ps1")
+                : Path.Combine(PackageDirectory, remove ? "uninstall-windows.ps1" : "install-windows.ps1");
             if (!File.Exists(script)) throw new FileNotFoundException("설치 스크립트가 없습니다. 전체 패키지에서 앱을 실행해 주세요.", script);
             // Preflight captures the actual signature/endpoint failure without elevation.
             if (!remove)
@@ -292,7 +301,7 @@ public sealed partial class MainWindow : Window
             if (process.ExitCode != 0) throw new InvalidOperationException($"설치 도구가 완료되지 않았습니다 (코드 {process.ExitCode}).");
             await ExplainAsync(remove ? "원래 설정으로 복원했습니다" : "효과 등록을 완료했습니다",
                 remove ? "PC를 다시 시작하고 재생·녹음 앱을 다시 열어 주세요."
-                : "PC를 다시 시작하고 재생·녹음 앱을 다시 열어 주세요. 스피커 소리를 재생하면서 녹음을 시작해 마이크 처리와 스피커 참조를 모두 확인해야 합니다. 등록 완료만으로 반향 제거가 검증되지는 않습니다. 호환 방식은 SoundControl을 백그라운드에 유지해야 합니다.");
+                : "PC를 다시 시작하고 재생·녹음 앱을 다시 열어 주세요. 스피커 소리를 재생하면서 녹음을 시작해 마이크 처리와 스피커 참조를 모두 확인해야 합니다. 등록 완료만으로 반향 제거가 검증되지는 않습니다. 호환 방식은 Personal Tools를 백그라운드에 유지해야 합니다.");
         }
         catch (Exception e) { await ExplainAsync("설치 작업을 완료하지 못했습니다", e.Message); }
         finally { busy = false; await RefreshAsync(); }

@@ -3,8 +3,8 @@
 #include <cstdio>
 
 int main(){
-    using soundcontrol::win::NeuralStream;
-    soundcontrol::win::NeuralOutputMixer mixer;
+    using personaltools::win::NeuralStream;
+    personaltools::win::NeuralOutputMixer mixer;
     for(unsigned i=0;i<250;++i)mixer.process(.9f,.05f,true,true);
     float previous=.05f;
     for(unsigned i=0;i<240;++i){
@@ -19,7 +19,7 @@ int main(){
         previous=value;
     }
     if(std::abs(previous-.05f)>.0001f){puts("Recovered model remained bypassed");return 1;}
-    auto stream=std::make_unique<NeuralStream>(L"Z:\\SoundControl-absent-test-model");
+    auto stream=std::make_unique<NeuralStream>(L"Z:\\PersonalTools-absent-test-model");
     std::array<float,514> input{},output{};
     // Irregular packet sizes span both callback and 384-sample neural hop boundaries.
     // A missing runtime must preserve input 1 with fixed latency, including toggle changes.

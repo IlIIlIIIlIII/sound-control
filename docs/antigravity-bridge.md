@@ -110,7 +110,7 @@ Antigravity 설정을 따른다. 모델·계정 오류는 **CLI 열기 · 로그
 dotnet run --project Tests/AntigravityBridge/AntigravityBridgeTests.csproj -c Release
 # 실제 로그인된 CLI로 모델 조회 및 두 번의 생성 요청 실행
 dotnet run --project Tests/AntigravityBridge/AntigravityBridgeTests.csproj -c Release -- --live
-dotnet publish Sources/Windows/WinUI/SoundControlWindows.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o build/personal-tools-package/ui
+dotnet publish Sources/Windows/WinUI/PersonalToolsWindows.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o build/personal-tools-package/ui
 ```
 
 첫 테스트는 실제 자식 프로세스로 실행되는 가짜 CLI를 사용해 인증, 모델 목록, UTF-8,

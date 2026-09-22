@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace soundcontrol::display {
+namespace personaltools::display {
 
 constexpr std::uint32_t kMO32U24Vendor = 0x1c54;
 constexpr std::uint32_t kMO32U24Model = 0x3219;
@@ -59,4 +59,4 @@ std::optional<SwapPlan> makeMO32U24SwapPlan(
     const std::vector<DisplayGeometry>& displays,
     std::string& error);
 
-}  // namespace soundcontrol::display
+}  // namespace personaltools::display

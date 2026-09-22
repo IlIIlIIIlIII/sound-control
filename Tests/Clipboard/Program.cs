@@ -3,7 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Sockets;
-using SoundControl;
+using PersonalTools;
 
 // A real child process verifies the CLI contract, including cwd and file access.
 if (args.Contains("models")) { Console.WriteLine(ClipboardSearch.Model + "\tGemini 3.8 Flash High"); return; }

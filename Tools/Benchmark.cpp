@@ -10,12 +10,12 @@ int main() {
     constexpr double sampleRate = 192000.0;
     constexpr std::size_t blockFrames = 512;
     constexpr double audioSeconds = 30.0;
-    const std::vector<soundcontrol::PEQFilter> left{
+    const std::vector<personaltools::PEQFilter> left{
         {66.0, -12.0, 7.40}, {140.0, -12.0, 3.21}};
-    const std::vector<soundcontrol::PEQFilter> right{
+    const std::vector<personaltools::PEQFilter> right{
         {65.0, -8.4, 8.00}, {142.0, -12.0, 3.36}};
 
-    soundcontrol::StereoDSP dsp;
+    personaltools::StereoDSP dsp;
     std::string error;
     if (!dsp.configure(left, right, sampleRate, error)) {
         std::cerr << error << '\n';

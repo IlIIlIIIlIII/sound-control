@@ -3,7 +3,8 @@
 Windows 앱은 사운드 제어와 Antigravity CLI 브릿지를 탭으로 제공하는 도구 모음입니다.
 **Antigravity 브릿지** 탭에서 CLI·모델 확인 → 브릿지 시작 후, OpenAI 호환 클라이언트에
 표시된 Base URL과 API 키를 입력하세요. [연동 범위와 사용 안내](docs/antigravity-bridge.md).
-오디오 모듈과 설치 경로는 기존 `SoundControl` 이름을 유지합니다.
+앱 표시 이름은 **Personal Tools**, 실행 파일과 내부 식별자는 `PersonalTools`, 저장소 이름은 `personal-tools`로 통일합니다.
+기존 Windows 오디오 드라이버가 설치된 PC에서는 설정과 반향 제거 연결을 유지하기 위해 이전 `SoundControl` 데이터 경로와 버전 1 공유 메모리 이름을 호환용으로 사용합니다. 새 설치는 `PersonalTools` 경로를 사용합니다.
 
 Windows 11용 시스템 EQ·실제 마이크 반향 제거 APO와 네이티브 설정 앱도 포함합니다.
 Windows 빌드, 로컬 설치, 서명 요구 사항과 검증 범위는 [Windows 안내](docs/windows.md)를 참고하세요.
@@ -11,11 +12,11 @@ Windows 빌드, 로컬 설치, 서명 요구 사항과 검증 범위는 [Windows
 
 아래는 기존 macOS 버전 설명입니다.
 
-SoundControl is a small, native macOS utility. It loads separate REW
+PersonalTools is a small, native macOS utility. It loads separate REW
 `Configurable_PEQ` text files for the left and right channels and routes the
 system mix to a user-selected physical output device. It also removes that
 speaker signal from MOTU M2 input 1 before presenting it to voice apps as a
-standard one-channel `SoundControl Mic` device, and keeps
+standard one-channel `PersonalTools Mic` device, and keeps
 the local external-display configuration available without BetterDisplay.
 
 ## Design
@@ -43,7 +44,7 @@ the local external-display configuration available without BetterDisplay.
 - No third-party runtime libraries, network access, telemetry, or updater
 
 Display reinitialization and virtual EDID use dynamically loaded, undocumented
-macOS APIs. SoundControl checks that the required symbols are present and otherwise
+macOS APIs. PersonalTools checks that the required symbols are present and otherwise
 leaves the display configuration unchanged. The role swap uses the public
 CoreGraphics display-configuration transaction API for positions and dynamically
 loads the same private MonitorPanel rotation path used by macOS display settings.
@@ -60,21 +61,21 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-The resulting app is `build/SoundControl.app`. Building and testing do not install
+The resulting app is `build/PersonalTools.app`. Building and testing do not install
 anything or change the current output.
 
 ## Local installation
 
-Installation places `SoundControlMic.driver` in the system HAL plug-in directory and
+Installation places `PersonalToolsMic.driver` in the system HAL plug-in directory and
 restarts Core Audio once:
 
 ```sh
 ./Scripts/install-local.sh --confirm-system-change
 ```
 
-Open SoundControl, choose a physical output device, import an L file and an R file,
+Open PersonalTools, choose a physical output device, import an L file and an R file,
 then enable EQ. Imported files are copied to
-`~/Library/Application Support/SoundControl/Filters`.
+`~/Library/Application Support/PersonalTools/Filters`.
 
 `스피커 소리 제거` is independent from EQ and has one automatic mode.
 
@@ -84,7 +85,7 @@ actions, engine reload, and a link to the full settings window without adding a
 second resident process.
 The automatic mode protects frequency bands containing near-end speech while
 applying stronger residual and nonlinear echo removal only to render-correlated
-bands. Only the live speaker reference is processed; SoundControl does not save or
+bands. Only the live speaker reference is processed; PersonalTools does not save or
 transmit audio. If M2 input 1 reaches approximately -0.5 dBFS, adaptation
 freezes and the menu reports an input overload because clipped microphone
 samples cannot be reconstructed.
@@ -120,22 +121,22 @@ Recovery attempts are limited to one per two minutes and three per fifteen
 minutes within the current engine run. The menu's `마이크 경고 · 복구 기록` submenu
 and the settings window show current warnings and timestamped recovery events.
 The latest 64 events survive engine restarts in
-`~/Library/Application Support/SoundControl/mic-health.json`; audio is not saved.
+`~/Library/Application Support/PersonalTools/mic-health.json`; audio is not saved.
 Delay analysis runs off the audio callback using a bounded queue.
 
-On first enable, allow **SoundControl Engine** under System Settings > Privacy &
+On first enable, allow **PersonalTools Engine** under System Settings > Privacy &
 Security > System Audio Recording. The selected physical device remains the
 normal macOS output; bypass or an engine exit immediately restores its original
 direct audio path.
 
-When an enabled USB target is disconnected, SoundControl stops its tap, clears the
+When an enabled USB target is disconnected, PersonalTools stops its tap, clears the
 active EQ checkbox, and waits without muting the fallback device. When the same
 target returns, the EQ route and checkbox are restored and that device is
 automatically selected as both the normal and system default output.
 
-The local install script places the control app in `~/Applications/SoundControl.app`.
+The local install script places the control app in `~/Applications/PersonalTools.app`.
 When M2 is connected, the engine captures only hardware input channel 1 and sets
-`SoundControl Mic` as the normal macOS input. On disconnect the virtual microphone is
+`PersonalTools Mic` as the normal macOS input. On disconnect the virtual microphone is
 removed from the Core Audio device list and the default input falls back to the
 built-in microphone (or another physical input). On reconnect it is published
 again and becomes the default input automatically. Loopback is neither required
@@ -149,7 +150,7 @@ Uninstalling preserves imported filters:
 
 ## Supported REW rows
 
-SoundControl accepts enabled peaking filters in this shape:
+PersonalTools accepts enabled peaking filters in this shape:
 
 ```text
 Notes:left

@@ -4,17 +4,17 @@
 
 Windows 녹음기에 YouTube 소리가 그대로 들어간다는 보고를 조사했다. 설치된 MOTU 입력에는 MFX만 등록되어 있었고, 로그와 공유 미터에서 AEC 초기화/처리 콜백이 없고 rate=0임을 확인했다. EQ는 별도로 실행 중이었다.
 
-`repair-windows-capture.ps1`로 해당 SoundControl MFX를 LFX로 전환하고 Windows Audio를 재시작했다. 기존 설치 백업의 원래 값은 유지하고 LFX 슬롯의 변경 전 값을 추가했다. EQ 설정과 필터는 그대로 유지했다. 실제 audiodg의 AEC Initialize 성공과 공유 모드 48kHz 캡처 콜백, enabled=1, error=0을 확인했다. 사용자가 YouTube를 재생한 상태에서 reference=1과 내부 reductionDB100 지표 약 0.64~37.09dB를 관찰했다. 이는 APO 내부 지표이며, 독립적인 입출력 동시 비교나 녹음기 결과의 청취 검증은 아니다. 오디오 샘플은 파일로 저장하지 않았다. 격리 HKCU 설치 복원 테스트와 전환 후 재실행의 무변경 동작도 통과했다.
+`repair-windows-capture.ps1`로 해당 PersonalTools MFX를 LFX로 전환하고 Windows Audio를 재시작했다. 기존 설치 백업의 원래 값은 유지하고 LFX 슬롯의 변경 전 값을 추가했다. EQ 설정과 필터는 그대로 유지했다. 실제 audiodg의 AEC Initialize 성공과 공유 모드 48kHz 캡처 콜백, enabled=1, error=0을 확인했다. 사용자가 YouTube를 재생한 상태에서 reference=1과 내부 reductionDB100 지표 약 0.64~37.09dB를 관찰했다. 이는 APO 내부 지표이며, 독립적인 입출력 동시 비교나 녹음기 결과의 청취 검증은 아니다. 오디오 샘플은 파일로 저장하지 않았다. 격리 HKCU 설치 복원 테스트와 전환 후 재실행의 무변경 동작도 통과했다.
 
 ## 2026-09-21: SMSL endpoint 변경 후 자동 복구
 
 - 원인: 설정은 연결이 끊긴 `스피커(3- SMSL USB DAC)` / `43406fc5-af54-479b-b33d-846022c5cbec`를 가리켰고, 활성 출력은 `스피커(5- SMSL USB DAC)` / `8854650b-81fd-436c-bcb9-cfc59f893b9c`였다. AEC/NPU는 켜져 있으나 참조가 없어 원음을 전달했다. 새 출력에는 EQ 등록도 없었다.
 - 실제 PnP 부모 정보를 확인했다. SMSL은 `USB\VID_152A&PID_85DD`, USB capabilities `132`로 UNIQUEID 플래그가 없고 Container ID도 바뀌었다. 위치 기반 USB instance suffix를 시리얼로 취급하지 않는다. 같은 기능/하드웨어의 활성 출력 후보가 하나여서 `unique-usb-model` 방식으로 복구했다. 이 방식은 물리적 개체를 고유하게 증명하지 않으며 동일 모델 복수 후보는 보류한다. MOTU는 별도로 실제 UNIQUEID 플래그와 시리얼이 있음을 확인했다.
 - 관리자 소유 설치 복원 파일에 식별 정보와 새 출력의 원래 효과 값을 추가했다. 설정 비교 후 갱신하며, 필터와 EQ/AEC 토글은 보존한다. 진행 중 복구는 기록을 남겨 재시도/제거가 가능하다. 출력 복구만 구현했으며 마이크 endpoint 자동 교체는 포함하지 않는다.
-- `SoundControl Device Recovery` SYSTEM 작업을 부팅/1분 주기로 설치했다. 상태 변경 없는 작업 실행의 LastTaskResult=0을 확인했다. 정상 연결에서는 재시작하지 않았으며 audiodg 시작 시각은 22:23:29로 유지됐다. 실제 물리적 USB 분리/재삽입 시험은 하지 않았다. 이미 발생한 endpoint 변경을 복구한 실제 통합 검증이다.
+- `PersonalTools Device Recovery` SYSTEM 작업을 부팅/1분 주기로 설치했다. 상태 변경 없는 작업 실행의 LastTaskResult=0을 확인했다. 정상 연결에서는 재시작하지 않았으며 audiodg 시작 시각은 22:23:29로 유지됐다. 실제 물리적 USB 분리/재삽입 시험은 하지 않았다. 이미 발생한 endpoint 변경을 복구한 실제 통합 검증이다.
 - 전체 CTest **7/7**, 설치 복원 PowerShell 테스트 통과. 새 테스트는 단일 후보, 중복 후보 보류, 시리얼 불일치 거부, 다른 오디오 기능 거부, USB 허브 식별자 사용 방지, 원자적 복원 기록 교체, 기존 OEM 효과 보존을 검증한다. 브리지 테스트는 stale revision/장치 선택 충돌 거부와 토글/필터 보존 및 재시도를 검증했다.
 - 설치 후 기존 마이크, 원음 대용 MOTU Mix, 새 SMSL 루프백, MOTU 루프백을 30초간 측정했다. 오디오는 저장하지 않았다. 22:24:06 앱 로그에서 EQ 44.1kHz, AEC 48kHz 및 `DTLN-AEC 256 · NPU 처리 중`을 확인했다. 별도 18초 안정성 표본에서 참조=1, 오류=0, NPU 블록 11585→13848, 누락 카운터 1690434로 일정했다. 전체 카운터는 여러 마이크 인스턴스가 공유하므로 서로 다른 인스턴스 사이의 값을 직접 비교하지 않는다.
-- APO SHA256 `6342EA4BA01D028DADADF1CAF7E7C36B3AACBB5C884CF0A1CB9071C3AA0B1DAB` 유지. APO/NPU 모델은 변경하지 않고 설정 브리지·설정 도구·UI·복구 스크립트만 갱신했다. 이전 앱 파일은 `C:\Program Files\SoundControl\device-recovery-backup-20260921-222305`에 보존했다.
+- APO SHA256 `6342EA4BA01D028DADADF1CAF7E7C36B3AACBB5C884CF0A1CB9071C3AA0B1DAB` 유지. APO/NPU 모델은 변경하지 않고 설정 브리지·설정 도구·UI·복구 스크립트만 갱신했다. 이전 앱 파일은 `C:\Program Files\PersonalTools\device-recovery-backup-20260921-222305`에 보존했다.
 - 실제 음성/음악의 정답 분리가 없는 측정이므로 총 RMS 감소를 순수 반향 ERLE나 음성 보존 품질로 해석하지 않는다. 측정 결과는 `measurements/device-recovery-live-2026-09-21.csv`, `measurements/device-recovery-stability-2026-09-21.csv`에 있다.
 
 ## 2026-09-20 최종: 이 PC의 실제 시스템 AEC 동작 확인
@@ -27,7 +27,7 @@ Windows 녹음기에 YouTube 소리가 그대로 들어간다는 보고를 조�
 - 음악 구간: 약 50~137초. 처음 3초를 제외하고 SMSL 참조 > -60dBFS인 **84개 구간**의 전체 입력/출력 RMS 차이 중앙값은 **6.63dB**, 범위 **-1.86~33.88dB**였다. 아이패드 음성과 음악이 섞인 값이며 순수 반향 ERLE로 해석하지 않는다.
 - 음악 없는 음성 구간: SMSL 참조 < -100dBFS, 원음 Mix > -45dBFS, 시작 후 2초 초과인 **37개 구간**. 원음 대비 음량 차이 중앙값 **0.00dB**, 범위 **-0.37~0.44dB**로 음성 음량 보존을 확인했다. 음악과 음성이 겹치는 구간의 음성 명료도/단어 보존은 별도 깨끗한 음성 기준 신호나 청취 평가가 없어 정량 확정하지 않았다.
 - 결과: `measurements/aec-2026-09-20-system-paired.csv`(동시 입출력 비교), `measurements/aec-2026-09-20-system-meters.csv`(앞선 시스템 콜백 측정). 측정 중 일부 과도 입력에서 클리핑이 관찰되어 모든 조건의 무왜곡을 보장하지 않는다.
-- 종료 상태: Spotify 일시 정지, EQ/AEC 켜짐, SoundControl 데스크톱 앱 실행 유지. 이 호환 방식은 앱이 백그라운드에서 스피커 참조를 제공해야 한다. 앱 완전 종료/참조 중단 시 지연된 마이크 원음으로 통과한다. 재부팅 후 자동 실행과 실제 통화 앱별 검증은 이번 측정 범위에 포함하지 않았다.
+- 종료 상태: Spotify 일시 정지, EQ/AEC 켜짐, PersonalTools 데스크톱 앱 실행 유지. 이 호환 방식은 앱이 백그라운드에서 스피커 참조를 제공해야 한다. 앱 완전 종료/참조 중단 시 지연된 마이크 원음으로 통과한다. 재부팅 후 자동 실행과 실제 통화 앱별 검증은 이번 측정 범위에 포함하지 않았다.
 
 MOTU Mix 경로의 의미: [M Series 공식 설명서](https://cdn-data.motu.com/manuals/usb-c-audio/M_Series_User_Guide.pdf). 아래 항목들은 수정 과정의 과거 상태다.
 
@@ -36,7 +36,7 @@ MOTU Mix 경로의 의미: [M Series 공식 설명서](https://cdn-data.motu.com
 - v2 초기화 수정 DLL을 관리자 승인 후 실제 설치하고 Windows Audio/AudioEndpointBuilder를 재시작했다. 이후에도 MOTU의 MFX는 생성되지 않았다. SFX 선언 및 투명 SFX 클래스 시험도 실패하여 모두 복원했고, 불필요한 시험 클래스 코드는 제거했다.
 - Computer Use로 MOTU의 오디오 향상 설정을 껐다 켰지만 MFX는 호출되지 않았다. LFX 슬롯 시험과 입력 장치 사용 안 함→사용을 수행하자 실제 audiodg에서 AEC 클래스 생성·초기화 성공, 48kHz 처리 콜백을 확인했다. 같은 장치를 MFX로 복원하여 재활성화하면 다시 콜백이 없었다. 구형 슬롯의 참조 입력은 비활성이므로 이것만으로 반향 제거 성공은 아니다.
 - 호환 구현: 데스크톱 브리지의 별도 스레드가 선택된 SMSL의 WASAPI 루프백을 48kHz 스테레오로 받고, 페이지 파일 기반 공유 메모리로 마이크 APO에 전달한다. 마이크 원음은 IPC에 넣지 않는다. 공유 메모리 접근은 기존 설정 파일의 DACL을 사용한다. 각 APO의 독립 읽기 위치, 슬롯 덮어쓰기 검출, 단일 작성자, 설정 버전과 QPC 시각 검증을 적용했다. 오디오 콜백에서 파일/장치 열기, 메모리 할당, 잠금 대기를 하지 않는다.
-- 구형 연결 속성에 QPC가 없으면 콜백 시각과 프레임 길이로 첫 프레임 시각을 추정한다. 이는 하드웨어 타임스탬프보다 부정확하며 실제 반향 감소 검증이 필요하다. 호환 방식에서는 SoundControl 앱이 백그라운드에서 실행되어야 한다. 앱/참조가 없으면 지연된 마이크 원음을 전달한다.
+- 구형 연결 속성에 QPC가 없으면 콜백 시각과 프레임 길이로 첫 프레임 시각을 추정한다. 이는 하드웨어 타임스탬프보다 부정확하며 실제 반향 감소 검증이 필요하다. 호환 방식에서는 PersonalTools 앱이 백그라운드에서 실행되어야 한다. 앱/참조가 없으면 지연된 마이크 원음을 전달한다.
 - 전체 CTest 5/5 및 변경 후 APO/브리지 계약 테스트 통과. IPC의 두 채널/시각 전달, 여러 소비자, 한 작성자, 넘침, 작성자 재연결, 마지막 핸들 종료 후 매핑 해제를 추가 검증했다.
 - 호환 DLL/브리지와 되돌리기 정보를 준비하고 관리자 적용 요청을 띄웠다. **이 문서 작성 시 호환 구현의 실제 시스템 적용과 반향 감소 측정은 아직 대기 중이다.** 최신 실행 결과는 아래 과거 기록과 구분해야 한다.
 
@@ -61,7 +61,7 @@ MOTU Mix 경로의 의미: [M Series 공식 설명서](https://cdn-data.motu.com
 - 원복 시 한 항목의 실패가 나머지 항목 복원을 막지 않도록 변경했다. 제한된 HKCU 테스트 키에서 값 설정/제거, 보호 설정의 원래 부재/0/1 복원, 서명 정책을 PowerShell 5.1과 7에서 검증했다.
 - 실제 audiodg가 COM 집계로 APO를 생성하는데 기존 클래스 팩터리가 이를 거부하는 문제를 확인했다. 제어 IUnknown과 내부 IUnknown을 분리하고, 배포 DLL의 집계 생성/COM 객체 동일성/참조 수 회귀 테스트를 추가했다.
 - 실제 SMSL 공유 모드 스트림에서 EQ 콜백 활성, 44,100Hz, 오류 0을 확인했다. MOTU 48,000Hz 캡처 스트림 생성은 성공했지만 AEC 콜백은 확인되지 않았다. 무음 재생과 저장하지 않는 캡처로 확인했으며 실제 방의 EQ 응답/반향 감소 측정은 아니다.
-- 복원한 L/R 필터는 Resources/EQ와 E:/Speaker에 보관했고 설치된 사본은 ProgramData/SoundControl에 있다.
+- 복원한 L/R 필터는 Resources/EQ와 E:/Speaker에 보관했고 설치된 사본은 ProgramData/PersonalTools에 있다.
 - 실제 Netflix/Spotify 재생은 이번 검증에 포함되지 않았다.
 
 아래 기록의 미서명 설치 차단/필터 누락은 당시 상태이며, 위 항목으로 갱신되었다.
@@ -111,7 +111,7 @@ MSVC x64용 CMake/PowerShell 빌드와 GitHub Actions 워크플로를 추가했�
 
 ## 미완료: 실제 오디오 장치 적용
 
-SMSL USB DAC 및 MOTU In 1-2 endpoint가 존재하는 것을 확인했지만 설치 사전 점검에서 `SoundControlAPO.dll`의 서명이 `NotSigned`로 확인되어 설치가 중단되었다.
+SMSL USB DAC 및 MOTU In 1-2 endpoint가 존재하는 것을 확인했지만 설치 사전 점검에서 `PersonalToolsAPO.dll`의 서명이 `NotSigned`로 확인되어 설치가 중단되었다.
 
 - 장치 효과 레지스트리 및 Windows 오디오 보안 설정은 변경하지 않았다.
 - 실제 audiodg 로딩, 스피커 EQ 측정, 실제 마이크 반향 감소, 통화 앱 호환성, 실장치 재연결은 아직 검증하지 않았다.

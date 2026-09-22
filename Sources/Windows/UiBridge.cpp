@@ -10,8 +10,8 @@
 #include <vector>
 
 // UI-only C ABI. The audio callback never loads the CLR or calls this library.
-using namespace soundcontrol;
-using namespace soundcontrol::win;
+using namespace personaltools;
+using namespace personaltools::win;
 using Microsoft::WRL::ComPtr;
 namespace {
 struct Device { std::wstring id, name; };

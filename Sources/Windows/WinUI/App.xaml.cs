@@ -2,7 +2,7 @@ using Microsoft.UI.Xaml;
 using System.Threading;
 using System.Runtime.InteropServices;
 
-namespace SoundControl;
+namespace PersonalTools;
 public partial class App : Application
 {
     internal AntigravityBridge Bridge { get; } = new(BridgeSettings.LoadOrCreateApiKey());
@@ -19,7 +19,7 @@ public partial class App : Application
     {
         try
         {
-            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SoundControl");
+            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PersonalTools");
             Directory.CreateDirectory(folder);
             string detail = "";
             if (GetRestrictedErrorInfo(out var info) == 0 && info is not null)
@@ -42,8 +42,8 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         bool inTray = Environment.GetCommandLineArgs().Contains("--startup", StringComparer.OrdinalIgnoreCase);
-        instance = new Mutex(true, @"Local\SoundControlWinUI", out bool first);
-        activate = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\SoundControlWinUIActivate");
+        instance = new Mutex(true, @"Local\PersonalToolsWinUI", out bool first);
+        activate = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\PersonalToolsWinUIActivate");
         if (!first) { if (!inTray) activate.Set(); Exit(); return; }
         MainWindow main;
         try { main = new MainWindow(); }

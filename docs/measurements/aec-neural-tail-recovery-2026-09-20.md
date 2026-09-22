@@ -33,11 +33,11 @@ Quiet voice is still a limitation. On this fixture, the Python NPU replay's quie
 ## Validation and deployment
 
 - Six CTest suites passed, including missing-result/recovery transition regression and unavailable-model delayed passthrough.
-- `Tests/WindowsNeuralReplay.cpp` / `SoundControlNeuralReplay` provide a manual local-weight NPU runner; `Scripts/score-windows-neural-tail.py` scores controlled repeated replay. Private raw audio remains under ignored `build/`.
+- `Tests/WindowsNeuralReplay.cpp` / `PersonalToolsNeuralReplay` provide a manual local-weight NPU runner; `Scripts/score-windows-neural-tail.py` scores controlled repeated replay. Private raw audio remains under ignored `build/`.
 - Built and installed APO SHA256: `D62ED6AABE3911D1DB8CB03353834C82BC876D4F2172AE8FFAE8E669414A757F`.
-- Prior installed NPU APO preserved in `build/before-neural-tail-update/SoundControlAPO.dll`.
+- Prior installed NPU APO preserved in `build/before-neural-tail-update/PersonalToolsAPO.dll`.
 - One elevated replacement of the existing APO, with audio-service restart. No model weights, signing/protection settings, microphone selection, or EQ configuration changed. Packaged APO updated too.
-- SoundControl restarted as the normal user. Spotify playback had to be resumed after service restart; while paused, reference absence correctly caused delayed raw fallback. Subsequent sampled NPU blocks advanced with reference active and no new missing frames.
+- PersonalTools restarted as the normal user. Spotify playback had to be resumed after service restart; while paused, reference absence correctly caused delayed raw fallback. Subsequent sampled NPU blocks advanced with reference active and no new missing frames.
 - A 75-second installed WASAPI capture completed; `aec-neural-tail-installed-75s-2026-09-20.csv` contains 74 one-second rows. After startup, the missing counter remained 3902 and reference stayed active. UI independently showed DTLN-AEC 256 / NPU processing and active speaker reference. User confirmation of the requested post-installation short utterance did not arrive during this capture, so it is continuity evidence, not a verified live voice-on/off A/B comparison.
 - The existing sound-settings subtitle still displays the old DSP latency (21.33 ms); actual NPU latency is 85.33 ms. UI was not rebuilt in this APO-only update.
 

@@ -33,6 +33,6 @@ Decision: no candidate currently satisfies all of **obtainable weights/SDK, actu
 
 The user enabled music and intermittent iPad speech. Captured 75 seconds locally; audio remains in ignored `build/aec-npu-evaluation-doubletalk.bin`, not uploaded. Diagnostic levels are in `aec-reference-restarted-2026-09-20.csv`.
 
-At inspection, SoundControlWindows was absent and reference publication was frozen. Starting the installed app with `--startup` restored publication and timestamp progression. The capture includes both unavailable-reference and recovered-reference portions; it is **not** a clean model comparison. With concurrent speech, total input/output level change is not an echo-only ERLE metric.
+At inspection, PersonalToolsWindows was absent and reference publication was frozen. Starting the installed app with `--startup` restored publication and timestamp progression. The capture includes both unavailable-reference and recovered-reference portions; it is **not** a clean model comparison. With concurrent speech, total input/output level change is not an echo-only ERLE metric.
 
 This establishes one concrete failure mode (reference producer absent), not the cause of every previously reported long-running failure. The older per-instance frozen-model observations remain unresolved. No evidence here supports claiming the overall AEC issue fixed.

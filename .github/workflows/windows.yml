@@ -24,8 +24,8 @@ jobs:
       - name: Package (unsigned)
         run: cmake --install build --config Release --prefix build/package
       - name: Publish WinUI 3 (self-contained)
-        run: dotnet publish Sources/Windows/WinUI/SoundControlWindows.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o build/package/ui
+        run: dotnet publish Sources/Windows/WinUI/PersonalToolsWindows.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o build/package/ui
       - uses: actions/upload-artifact@v4
         with:
-          name: SoundControl-Windows-x64-unsigned
+          name: PersonalTools-Windows-x64-unsigned
           path: build/package

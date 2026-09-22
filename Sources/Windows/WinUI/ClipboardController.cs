@@ -4,7 +4,7 @@ using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Streams;
 
-namespace SoundControl;
+namespace PersonalTools;
 
 internal sealed class ClipboardController : IAsyncDisposable
 {
